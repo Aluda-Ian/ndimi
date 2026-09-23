@@ -42,6 +42,25 @@ DEBUG = env('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes', 'on')
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver')
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
 
+# On Vercel, trust the addresses Vercel assigns to this deployment automatically.
+for _var in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'):
+    _host = env(_var)
+    if _host:
+        ALLOWED_HOSTS.append(_host)
+        CSRF_TRUSTED_ORIGINS.append(f'https://{_host}')
+if env('VERCEL'):
+    # The production domain, so the site works even before env vars are set.
+    for _host in ('ndimi.jeotamedia.co.ke', 'www.ndimi.jeotamedia.co.ke'):
+        if _host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_host)
+            CSRF_TRUSTED_ORIGINS.append(f'https://{_host}')
+    # Never show Django's debug pages on Vercel unless explicitly turned on.
+    DEBUG = env('DJANGO_DEBUG', 'false').lower() in ('1', 'true', 'yes', 'on')
+    # Vercel terminates HTTPS and forwards the original scheme in this header.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 
 # Application definition
 
