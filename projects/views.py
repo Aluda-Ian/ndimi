@@ -63,6 +63,52 @@ def health(request):
 		return JsonResponse({'status': 'degraded', 'mongodb': 'unavailable'}, status=503)
 
 
+# ---------- public demo (landing page) ----------
+
+def _parse_timestamp(text):
+	"""'1:05' or '0:02.5' or '65' -> seconds, or None."""
+	try:
+		parts = [float(p) for p in text.strip().split(':')]
+	except ValueError:
+		return None
+	seconds = 0.0
+	for part in parts:
+		seconds = seconds * 60 + part
+	return seconds
+
+
+def _parse_script(script):
+	"""'0:02 | Narrator | English line | Kiswahili line' per line -> list of dicts."""
+	lines = []
+	for raw in (script or '').splitlines():
+		cells = [c.strip() for c in raw.split('|')]
+		if len(cells) < 4 or not cells[0]:
+			continue
+		start = _parse_timestamp(cells[0])
+		if start is None:
+			continue
+		lines.append({'t': start, 'label': cells[0], 'who': cells[1], 'en': cells[2], 'sw': ' | '.join(cells[3:])})
+	return lines
+
+
+def public_demo(request):
+	"""What the public landing page shows: the demo's YouTube videos and script.
+
+	Uploaded demo files stay private (signed-in users only), so only YouTube
+	links are shared here.
+	"""
+	if request.method != 'GET':
+		return JsonResponse({'error': 'Method not allowed.'}, status=405)
+	setup = DemoSetup.load()
+	response = JsonResponse({
+		'original_youtube_id': youtube_id(setup.original_url),
+		'dubbed_youtube_id': youtube_id(setup.dubbed_url),
+		'lines': _parse_script(setup.script),
+	})
+	response['Cache-Control'] = 'public, max-age=60'
+	return response
+
+
 # ---------- configuration ----------
 
 def _setup_dict(setup):

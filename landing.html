@@ -68,10 +68,28 @@ p{margin:0}
 .hero .wrap a,.hero .wrap button{pointer-events:auto}
 .made{display:inline-flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px 7px 8px}
 .made b{background:var(--brand-soft);color:var(--ink);font-weight:600;border-radius:999px;padding:3px 10px;font-size:13px}
-.hero h1{font-weight:700;font-size:clamp(46px,8.6vw,124px);line-height:.95;letter-spacing:-.02em;margin-top:28px;max-width:11ch}
-.hero h1 .into{display:block;color:var(--muted);font-weight:500}
+.hero h1{font-weight:700;font-size:clamp(46px,8.6vw,124px);line-height:.95;letter-spacing:-.02em;margin-top:28px;max-width:none}
+.hero h1 .into{display:block;width:max-content;max-width:100%;white-space:nowrap;color:var(--muted);font-size:clamp(30px,4.8vw,72px);font-weight:500}
 .lang{display:inline-block;color:var(--brand);min-width:1ch;white-space:nowrap}
 .lang .caret{display:inline-block;width:.06em;height:.78em;background:var(--accent);margin-left:.06em;vertical-align:-.04em;animation:blink 1s steps(1) infinite}
+/* ---------- mobile menu ---------- */
+.menubtn{display:none}
+.mmenu{display:none}
+@media (max-width:960px){
+  .menubtn{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;flex:none}
+  .menubtn:hover{border-color:var(--ink)}
+  .menubtn svg{width:20px;height:20px}
+  .menubtn .x{display:none}
+  .nav.open .menubtn .bars{display:none}
+  .nav.open .menubtn .x{display:block}
+  .mmenu{position:absolute;left:0;right:0;top:100%;background:var(--ground);border-bottom:1px solid var(--line);box-shadow:0 24px 40px -24px rgba(8,40,36,.35)}
+  .nav.open .mmenu{display:block;animation:menuin .18s ease-out}
+  .nav .mmenu .wrap{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding-block:8px 20px;height:auto}
+  .mmenu a.item{display:flex;align-items:center;min-height:52px;font:600 20px/1.2 var(--display);text-decoration:none;border-bottom:1px solid var(--line)}
+  .mmenu .ctas{margin-top:16px}
+  .mmenu .ctas .btn{flex:1 1 140px;white-space:nowrap}
+}
+@keyframes menuin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 @keyframes blink{50%{opacity:0}}
 .hero .sub{font-size:clamp(18px,1.6vw,21px);color:var(--muted);max-width:40ch;margin-top:30px}
 .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
@@ -94,6 +112,11 @@ p{margin:0}
 .tog button[aria-pressed="true"]{background:var(--screen-ink);color:#0F1A18}
 .tog button:focus-visible{outline:2px solid var(--accent)}
 .sub-line{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);width:max-content;max-width:88%;text-align:center;font:500 clamp(14px,1.6vw,19px)/1.35 var(--body);background:rgba(7,11,10,.72);padding:8px 14px;border-radius:10px}
+.player .yt,.player .yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.player.live .sun,.player.live .hill,.player.live .sub-line,.player.live .scrub{display:none}
+.player.live .tog{z-index:2}
+.seg.clickable{cursor:pointer}
+.seg.clickable:hover{background:#18272a}
 .scrub{position:absolute;left:14px;right:14px;bottom:10px;height:3px;border-radius:2px;background:rgba(255,255,255,.18)}
 .scrub b{display:block;height:100%;width:0;background:var(--accent);border-radius:2px}
 .side{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -201,6 +224,21 @@ footer a:hover{color:var(--ink)}
     <div class="end">
       <a class="btn quiet" href="/accounts/login/">Sign in</a>
       <a class="btn solid" href="/accounts/signup/">Start dubbing</a>
+      <button class="menubtn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mmenu">
+        <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>
+        <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mmenu" id="mmenu">
+    <div class="wrap">
+      <a class="item" href="#how">How it works</a>
+      <a class="item" href="#languages">Languages</a>
+      <a class="item" href="#roadmap">Roadmap</a>
+      <div class="ctas">
+        <a class="btn line big" href="/accounts/login/">Sign in</a>
+        <a class="btn solid big" href="/accounts/signup/">Start dubbing</a>
+      </div>
     </div>
   </div>
 </header>
@@ -222,9 +260,9 @@ footer a:hover{color:var(--ink)}
   <section class="stage" id="demo" aria-label="Dubbing workspace preview">
     <div class="wrap">
       <div class="window">
-        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>kajiado-water-project.mp4 · English to Kiswahili</span></div>
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span id="barTitle">kajiado-water-project.mp4 · English to Kiswahili</span></div>
         <div class="ws">
-          <div class="player">
+          <div class="player" id="player">
             <div class="sun"></div><div class="hill"></div>
             <div class="tog" role="group" aria-label="Audio track">
               <button type="button" id="t-en" aria-pressed="false">Original</button>
@@ -401,9 +439,76 @@ function showSteps(){
 }
 showSeg(); showSteps();
 if(!reduce){
-  setInterval(()=>{cur=(cur+1)%SEGS.length; showSeg()}, 3200);
+  var segTimer = setInterval(()=>{cur=(cur+1)%SEGS.length; showSeg()}, 3200);
   setInterval(()=>{step = step>=STEPS.length ? 0 : step+1; showSteps()}, 1900);
 }
+
+/* ---------- real demo video (set by an admin in Demo setup) ---------- */
+(async function(){
+  let demo;
+  try{ const r = await fetch('/api/demo/', {headers:{Accept:'application/json'}}); if(!r.ok) return; demo = await r.json(); }catch(e){ return; }
+  const ids = {en: demo.original_youtube_id || '', sw: demo.dubbed_youtube_id || ''};
+  if(!ids.en && !ids.sw) return; // nothing set: keep the illustrated preview
+  let yt = null;
+  // Load YouTube's player first; if it can't load, keep the illustrated preview untouched.
+  await new Promise((res, rej) => {
+    if(window.YT && YT.Player) return res();
+    const prev = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = () => { prev && prev(); res(); };
+    const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api'; sc.onerror = rej; document.head.appendChild(sc);
+    setTimeout(rej, 10000);
+  }).catch(() => null);
+  if(!(window.YT && YT.Player)) return;
+  const lines = (demo.lines || []).filter(l => l && isFinite(l.t));
+  if(typeof segTimer !== 'undefined') clearInterval(segTimer);
+
+  const player = $('player');
+  player.classList.add('live');
+  const box = document.createElement('div'); box.className = 'yt'; box.innerHTML = '<div id="ytBox"></div>';
+  player.insertBefore(box, player.firstChild);
+  $('barTitle').textContent = 'Ndimi demo · English to Kiswahili';
+
+  // Only offer the tracks that exist
+  if(!ids.en) $('t-en').hidden = true;
+  if(!ids.sw) $('t-sw').hidden = true;
+  let trk = ids.sw ? 'sw' : 'en';
+  $('t-en').setAttribute('aria-pressed', trk==='en'); $('t-sw').setAttribute('aria-pressed', trk==='sw');
+
+  // Script panel from the real script
+  if(lines.length){
+    $('segs').innerHTML = '';
+    lines.forEach(l => {
+      const d = document.createElement('div'); d.className = 'seg clickable'; d.tabIndex = 0;
+      d.innerHTML = '<time></time><span class="en"></span><span class="sw"></span>';
+      d.querySelector('time').textContent = l.label; d.querySelector('.en').textContent = l.en; d.querySelector('.sw').textContent = l.sw;
+      const go = () => { if(yt && yt.seekTo){ yt.seekTo(l.t, true); yt.playVideo(); } };
+      d.onclick = go; d.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); go(); } };
+      $('segs').appendChild(d);
+    });
+  }
+
+
+  yt = new YT.Player('ytBox', {videoId: ids[trk], host: 'https://www.youtube-nocookie.com',
+    playerVars: {rel: 0, playsinline: 1, modestbranding: 1}});
+
+  function switchTo(t){
+    if(!ids[t] || t === trk) return;
+    const at = yt.getCurrentTime ? yt.getCurrentTime() : 0;
+    const playing = yt.getPlayerState && yt.getPlayerState() === 1;
+    trk = t;
+    $('t-en').setAttribute('aria-pressed', t==='en'); $('t-sw').setAttribute('aria-pressed', t==='sw');
+    if(playing) yt.loadVideoById({videoId: ids[t], startSeconds: at}); else yt.cueVideoById({videoId: ids[t], startSeconds: at});
+  }
+  $('t-en').onclick = () => switchTo('en');
+  $('t-sw').onclick = () => switchTo('sw');
+
+  // Highlight the line being spoken
+  setInterval(() => {
+    if(!lines.length || !yt || !yt.getCurrentTime) return;
+    const now = yt.getCurrentTime(); let a = -1;
+    lines.forEach((l, i) => { if(now >= l.t) a = i; });
+    document.querySelectorAll('#segs .seg').forEach((n, i) => n.classList.toggle('on', i === a));
+  }, 250);
+})();
 
 /* ---------- pipeline reveal (line draws, text always visible) ---------- */
 const pipe = $('pipe');
@@ -468,6 +573,18 @@ addEventListener('resize', ()=>{size(); if(reduce) draw()});
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', readCols);
 new MutationObserver(readCols).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 size(); t = 2; loop();
+})();
+
+/* ---------- mobile menu ---------- */
+(function(){
+  const nav = document.querySelector('header.nav'), btn = document.getElementById('menuBtn');
+  if(!nav || !btn) return;
+  const set = open => { nav.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu'); };
+  btn.addEventListener('click', () => set(!nav.classList.contains('open')));
+  document.querySelectorAll('#mmenu a').forEach(a => a.addEventListener('click', () => set(false)));
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') set(false); });
+  document.addEventListener('click', e => { if(!nav.contains(e.target)) set(false); });
+  matchMedia('(min-width:961px)').addEventListener('change', m => { if(m.matches) set(false); });
 })();
 </script>
 
