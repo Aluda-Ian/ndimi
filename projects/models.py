@@ -1,8 +1,21 @@
+import re
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
 VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'm4v']
+
+_YOUTUBE_ID = re.compile(
+    r'(?:youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/|v/)|youtu\.be/)([A-Za-z0-9_-]{11})'
+)
+
+
+def youtube_id(url):
+    """The 11-character video id from any common YouTube link, or '' if it isn't one."""
+    match = _YOUTUBE_ID.search(url or '')
+    return match.group(1) if match else ''
 
 
 class Language(models.Model):
@@ -41,6 +54,14 @@ class DemoSetup(models.Model):
         validators=[FileExtensionValidator(VIDEO_EXTENSIONS)],
         help_text='Dubbed Kiswahili video.',
     )
+    original_url = models.URLField(
+        'Original video link', blank=True,
+        help_text='YouTube link to the original video. Used instead of the uploaded file when set.',
+    )
+    dubbed_url = models.URLField(
+        'Dubbed video link', blank=True,
+        help_text='YouTube link to the dubbed video. Used instead of the uploaded file when set.',
+    )
     script = models.TextField(
         blank=True,
         help_text='One line per segment: 0:00 | Narrator | English line | Kiswahili line',
@@ -56,6 +77,12 @@ class DemoSetup(models.Model):
 
     def __str__(self):
         return 'Demo setup'
+
+    def clean(self):
+        for field in ('original_url', 'dubbed_url'):
+            value = getattr(self, field)
+            if value and not youtube_id(value):
+                raise ValidationError({field: 'Paste a YouTube link, like https://youtu.be/abc123XYZ00.'})
 
     def save(self, *args, **kwargs):
         self.pk = 1

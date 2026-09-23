@@ -12,7 +12,7 @@ from pymongo.errors import PyMongoError
 from accounts.models import needs_email_verification
 from system.models import SystemSettings
 
-from .models import VIDEO_EXTENSIONS, DemoSetup, Language
+from .models import VIDEO_EXTENSIONS, DemoSetup, Language, youtube_id
 
 
 # ---------- access control ----------
@@ -69,6 +69,10 @@ def _setup_dict(setup):
 	return {
 		'original_video': setup.original_video.url if setup.original_video else None,
 		'dubbed_video': setup.dubbed_video.url if setup.dubbed_video else None,
+		'original_url': setup.original_url,
+		'dubbed_url': setup.dubbed_url,
+		'original_youtube_id': youtube_id(setup.original_url),
+		'dubbed_youtube_id': youtube_id(setup.dubbed_url),
 		'script': setup.script,
 		'updated_at': setup.updated_at.isoformat() if setup.updated_at else None,
 	}
@@ -135,6 +139,14 @@ def update_setup(request):
 			if old:
 				old.delete(save=False)
 			getattr(setup, field).save(upload.name, upload, save=False)
+
+	# YouTube links: a link is played instead of the uploaded file; an empty value clears it.
+	for field in ('original_url', 'dubbed_url'):
+		if field in request.POST:
+			value = request.POST[field].strip()
+			if value and not youtube_id(value):
+				return JsonResponse({'error': f'{value} is not a YouTube link. Paste one like https://youtu.be/abc123XYZ00.'}, status=400)
+			setattr(setup, field, value)
 
 	if 'script' in request.POST:
 		setup.script = request.POST['script']

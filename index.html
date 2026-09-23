@@ -152,6 +152,8 @@ main{padding:28px clamp(18px,4vw,48px) 60px;min-width:0}
 .player{padding:16px}
 .stage{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:16/9}
 .stage video{width:100%;height:100%;display:block;object-fit:contain}
+.stage .ytwrap,.stage .ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.field .or{display:block;font-size:13px;color:var(--muted);margin:8px 0 6px}
 .stage .empty{position:absolute;inset:0;display:grid;place-items:center;color:#cfd3cf;text-align:center;padding:20px;font-size:15px}
 .ab{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:14px 0 10px;flex-wrap:wrap}
 .seg{display:inline-flex;background:var(--canvas);border-radius:10px;padding:4px}
@@ -203,10 +205,44 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
   main{overflow-x:hidden}
   .acct .uname{display:none}
   .nav{flex-direction:row;margin-left:auto}
-  .newdub,.studio{grid-template-columns:1fr}
+  .newdub,.studio{grid-template-columns:minmax(0,1fr)}
   .script{max-height:none}
   .need{grid-template-columns:1fr}
 }
+/* ===== Mobile: sidebar collapses to an icon rail; the menu button opens it ===== */
+.railtoggle,.scrim{display:none}
+.side .ico{display:none;width:20px;height:20px;flex:none}
+@media (max-width:980px){
+  .app{grid-template-columns:64px minmax(0,1fr)}
+  .side{position:sticky;top:0;align-self:start;height:100vh;height:100dvh;width:64px;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:14px;padding:calc(12px + env(safe-area-inset-top,0px)) 8px calc(12px + env(safe-area-inset-bottom,0px));border-right:1px solid var(--line);border-bottom:0;overflow:hidden;z-index:40}
+  .railtoggle{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;color:var(--ink);cursor:pointer;flex:none}
+  .railtoggle:hover{background:var(--brand-soft)}
+  .railtoggle .ico{display:block}
+  .side .ico{display:block}
+  .brand{justify-content:center}
+  .brand > span:last-child{display:none}
+  .side .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .side .foot{display:none}
+  .nav{flex-direction:column;flex-wrap:nowrap;margin:0;width:100%;gap:4px}
+  .nav button,.nav a{box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:44px;padding:10px}
+  .acct{margin:auto 0 0;padding:0;border:0;width:100%;flex-direction:column;align-items:stretch;gap:4px}
+  .acct .uname{display:none}
+  .acct .links{flex-direction:column;flex-wrap:nowrap;gap:4px;width:100%}
+  .acct .links form{width:100%}
+  .acct .links a,.acct .links .link{box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:44px;padding:10px;border-radius:8px;color:var(--muted);font-weight:500}
+  .acct .links a:hover,.acct .links .link:hover{color:var(--ink);background:var(--brand-soft)}
+  /* Open: the full sidebar slides over the page */
+  .app.open .side{position:fixed;left:0;top:0;bottom:0;width:min(264px,86vw);align-items:stretch;padding-inline:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:railin .18s ease-out}
+  .app.open .brand{justify-content:flex-start}
+  .app.open .brand > span:last-child{display:block}
+  .app.open .side .lbl{position:static;width:auto;height:auto;overflow:visible;clip:auto}
+  .app.open .nav button,.app.open .nav a,.app.open .acct .links a,.app.open .acct .links .link{justify-content:flex-start}
+  .app.open .acct .uname{display:flex;padding:0 10px}
+  .app.open .side .foot{display:block;padding:0 10px}
+  .app.open .scrim{display:block;position:fixed;inset:0;background:rgba(8,12,11,.45);z-index:39}
+  main{overflow-x:hidden}
+}
+@keyframes railin{from{transform:translateX(-24px);opacity:.6}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /* ===== Settings (admins) ===== */
 .manage{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;max-width:1180px}
@@ -280,26 +316,28 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 </head>
 <body>
 <div class="app">
-  <aside class="side">
+  <aside class="side" id="sidebar">
+    <button class="railtoggle" id="railToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <a class="brand" href="#" id="home">
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
       <span><b>Ndimi</b><small>by Jeota Media</small></span>
     </a>
     <nav class="nav" aria-label="Main">
-      <button aria-current="page" id="navNew">New dub</button>
-      <button id="navProj">Projects</button>
-      <button id="navManage" class="hidden">Settings</button>
+      <button aria-current="page" id="navNew" title="New dub"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="lbl">New dub</span></button>
+      <button id="navProj" title="Projects"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z"/></svg><span class="lbl">Projects</span></button>
+      <button id="navManage" class="hidden" title="Settings"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span class="lbl">Settings</span></button>
     </nav>
     <div class="acct hidden" id="acct">
       <div class="uname"><span id="acctName"></span><b class="role hidden" id="acctRole">Admin</b></div>
       <div class="links">
-        <a href="/accounts/" id="accountLink">Account</a>
-        <a href="/admin/" id="adminLink" class="hidden">Admin panel</a>
-        <form method="post" action="/accounts/logout/"><input type="hidden" name="csrfmiddlewaretoken" id="logoutCsrf"><button class="link" type="submit">Sign out</button></form>
+        <a href="/accounts/" id="accountLink" title="Account"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg><span class="lbl">Account</span></a>
+        <a href="/admin/" id="adminLink" class="hidden" title="Admin panel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6z"/></svg><span class="lbl">Admin panel</span></a>
+        <form method="post" action="/accounts/logout/"><input type="hidden" name="csrfmiddlewaretoken" id="logoutCsrf"><button class="link" type="submit" title="Sign out"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg><span class="lbl">Sign out</span></button></form>
       </div>
     </div>
     <div class="foot">Kenyan languages, <em>filmed with, not about.</em></div>
   </aside>
+  <div class="scrim" id="scrim" aria-hidden="true"></div>
 
   <main>
     <div class="top">
@@ -407,6 +445,7 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
         <div class="panel player">
           <div class="stage">
             <video id="vid" playsinline controls></video>
+            <div class="ytwrap hidden" id="ytWrap"><div id="ytBox"></div></div>
             <div class="empty hidden" id="stageEmpty">No demo videos yet. An admin needs to add them in demo setup.</div>
           </div>
           <div class="ab">
@@ -456,8 +495,10 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
   <form method="dialog" class="dlg">
     <h2>Demo setup</h2>
     <p id="setupHelp">Load these once before the meeting. They're saved in this browser on this laptop, so the demo works offline after that.</p>
-    <div class="field"><label for="fOrig">Original video (English)</label><input type="file" id="fOrig" accept="video/*"></div>
-    <div class="field"><label for="fDub">Dubbed video (Kiswahili)</label><input type="file" id="fDub" accept="video/*"></div>
+    <div class="field"><label for="fOrig">Original video (English)</label><input type="file" id="fOrig" accept="video/*">
+      <label class="or" for="uOrig">Or paste a YouTube link (used instead of the file)</label><input type="url" id="uOrig" placeholder="https://www.youtube.com/watch?v=…" inputmode="url" autocomplete="off"></div>
+    <div class="field"><label for="fDub">Dubbed video (Kiswahili)</label><input type="file" id="fDub" accept="video/*">
+      <label class="or" for="uDub">Or paste a YouTube link (used instead of the file)</label><input type="url" id="uDub" placeholder="https://youtu.be/…" inputmode="url" autocomplete="off"></div>
     <div class="field">
       <label for="segs">Script, one line per segment</label>
       <textarea id="segs" placeholder="0:00 | Narrator | English line | Kiswahili line&#10;0:06 | Narrator | Next English line | Next Kiswahili line"></textarea>
@@ -489,7 +530,7 @@ const STEPS = ['Importing video','Separating voices from music and sound','Trans
 /* server: 'server' when Django serves this page, 'local' for the static offline demo */
 let server = {mode:'local', user:null, canConfigure:true};
 
-let state = {tab:'link', lang:'ki', source:null, sourceName:'', origURL:null, dubURL:null, origBlob:null, dubBlob:null, segs:[], track:'dub', peaks:{}, projects:[]};
+let state = {tab:'link', lang:'ki', source:null, sourceName:'', origURL:null, dubURL:null, origYT:'', dubYT:'', origBlob:null, dubBlob:null, segs:[], track:'dub', peaks:{}, projects:[]};
 
 /* ---------- storage ---------- */
 function openDB(){return new Promise((res,rej)=>{try{const r=indexedDB.open('sautiyetu',1);r.onupgradeneeded=()=>r.result.createObjectStore('media');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}catch(e){rej(e)}});}
@@ -668,20 +709,54 @@ async function openStudio(){
   }else if(!state.projects.some(p=>p.name===name)){
     state.projects.unshift({name,target_language:langName(),status:'created'});lsSet(projKey(),JSON.stringify(state.projects));
   }
-  show('vStudio');setTrack(state.dubURL?'dub':'orig',true);renderLines();
+  show('vStudio');setTrack(hasDub()?'dub':'orig',true);renderLines();
   const ob=state.source==='file'&&state.userOrigBlob?state.userOrigBlob:state.origBlob;
   computePeaks('orig',ob);computePeaks('dub',state.dubBlob);
 }
+/* One interface over the <video> element and the YouTube player */
+function ytId(u){const m=String(u||'').match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:'';}
+const P={mode:'video',yt:null,ytId:'',
+  get t(){return P.mode==='yt'&&P.yt&&P.yt.getCurrentTime?P.yt.getCurrentTime()||0:vid.currentTime;},
+  set t(v){if(P.mode==='yt'&&P.yt&&P.yt.seekTo)P.yt.seekTo(v,true);else vid.currentTime=v;},
+  get d(){return P.mode==='yt'&&P.yt&&P.yt.getDuration?P.yt.getDuration()||0:vid.duration;},
+  get paused(){return P.mode==='yt'?!(P.yt&&P.yt.getPlayerState&&P.yt.getPlayerState()===1):vid.paused;},
+  play(){if(P.mode==='yt'){P.yt&&P.yt.playVideo&&P.yt.playVideo();}else vid.play().catch(()=>{});}
+};
+let ytApiP=null;
+function ytApi(){if(window.YT&&YT.Player)return Promise.resolve();if(ytApiP)return ytApiP;
+  ytApiP=new Promise((res,rej)=>{const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=()=>{prev&&prev();res();};
+    const sc=document.createElement('script');sc.src='https://www.youtube.com/iframe_api';sc.onerror=()=>{ytApiP=null;rej(new Error('Could not load the YouTube player. Check your connection.'));};document.head.appendChild(sc);});
+  return ytApiP;}
+async function ytLoad(id,at,play){
+  await ytApi();
+  if(!P.yt){await new Promise(res=>{P.yt=new YT.Player('ytBox',{videoId:id,host:'https://www.youtube-nocookie.com',
+      playerVars:{start:Math.floor(at||0),rel:0,playsinline:1,modestbranding:1},
+      events:{onReady:()=>{if(at)P.yt.seekTo(at,true);if(play)P.yt.playVideo();res();}}});});}
+  else if(P.ytId!==id){play?P.yt.loadVideoById({videoId:id,startSeconds:at||0}):P.yt.cueVideoById({videoId:id,startSeconds:at||0});}
+  else{P.yt.seekTo(at||0,true);if(play)P.yt.playVideo();}
+  P.ytId=id;}
+function srcFor(t){
+  const demo=!state.job; /* YouTube links are for the demo, not for real dub jobs */
+  if(t==='dub')return demo&&state.dubYT?{yt:state.dubYT}:(state.dubURL?{url:state.dubURL}:null);
+  if(state.source==='file'&&state.userOrig)return {url:state.userOrig};
+  return demo&&state.origYT?{yt:state.origYT}:(state.origURL?{url:state.origURL}:null);}
+function hasDub(){return !!srcFor('dub');}
 function setTrack(t,first){
   state.track=t;$('abOrig').setAttribute('aria-pressed',t==='orig');$('abDub').setAttribute('aria-pressed',t==='dub');
   $('trkOrig').classList.toggle('on',t==='orig');$('trkDub').classList.toggle('on',t==='dub');
-  const url=t==='dub'?state.dubURL:currentOrigURL();
-  $('stageEmpty').classList.toggle('hidden',!!url);
-  if(!url){vid.removeAttribute('src');vid.load();return;}
-  const at=first?0:vid.currentTime,playing=!vid.paused;
+  const src=srcFor(t);
+  $('stageEmpty').classList.toggle('hidden',!!src);
+  const at=first?0:P.t,playing=!first&&!P.paused;
+  if(!src){vid.pause();vid.removeAttribute('src');vid.load();if(P.yt&&P.yt.pauseVideo)P.yt.pauseVideo();$('ytWrap').classList.add('hidden');vid.classList.remove('hidden');P.mode='video';return;}
+  if(src.yt){
+    vid.pause();vid.classList.add('hidden');$('ytWrap').classList.remove('hidden');P.mode='yt';
+    ytLoad(src.yt,at,playing).catch(e=>toast(e.message));return;}
+  if(P.yt&&P.yt.pauseVideo)P.yt.pauseVideo();$('ytWrap').classList.add('hidden');vid.classList.remove('hidden');P.mode='video';
+  const url=src.url;
   if(vid.src!==url){vid.src=url;vid.addEventListener('loadedmetadata',function h(){vid.removeEventListener('loadedmetadata',h);try{vid.currentTime=Math.min(at,vid.duration||at)}catch(e){}if(playing)vid.play().catch(()=>{});},{once:true});}
+  else{try{vid.currentTime=at}catch(e){}if(playing)vid.play().catch(()=>{});}
 }
-$('abOrig').onclick=()=>setTrack('orig');$('abDub').onclick=()=>{if(!state.dubURL){toast('No dubbed video yet. An admin adds it in demo setup.');return;}setTrack('dub');};
+$('abOrig').onclick=()=>setTrack('orig');$('abDub').onclick=()=>{if(!hasDub()){toast('No dubbed video yet. An admin adds it in demo setup.');return;}setTrack('dub');};
 
 function renderLines(){
   const box=$('lines');
@@ -694,14 +769,15 @@ function renderLines(){
     const tags=d.querySelector('.tags');
     if(jobMode&&s.status==='stale')tags.innerHTML+='<span class="tag stale">Edited · needs new voice</span>';
     if(jobMode&&s.overflow>0.3)tags.innerHTML+=`<span class="tag">Too long by ${s.overflow.toFixed(1)}s · shorten</span>`;
-    d.onclick=e=>{if(e.target.classList.contains('sw'))return;vid.currentTime=s.t;vid.play().catch(()=>{});};
+    d.onclick=e=>{if(e.target.classList.contains('sw'))return;P.t=s.t;P.play();};
     d.querySelector('.sw').addEventListener('blur',e=>{const text=e.target.textContent.trim();if(jobMode){saveLine(s,text);}else{s.sw=text;saveSegsText();}});
     box.appendChild(d);});
 }
 function s0IsJob(){return state.segs.length===0||state.segs[0].index!==undefined;}
-function activeLine(){const t=vid.currentTime;let a=-1;state.segs.forEach((s,i)=>{if(t>=s.t)a=i;});
-  [...$('lines').children].forEach((el,i)=>{const on=i===a;if(on&&!el.classList.contains('active')&&!vid.paused)el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.toggle('active',on);});}
-vid.addEventListener('timeupdate',()=>{$('clock').textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration);activeLine();});
+function activeLine(){const t=P.t;let a=-1;state.segs.forEach((s,i)=>{if(t>=s.t)a=i;});
+  [...$('lines').children].forEach((el,i)=>{const on=i===a;if(on&&!el.classList.contains('active')&&!P.paused)el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.toggle('active',on);});}
+vid.addEventListener('timeupdate',()=>{if(P.mode!=='video')return;$('clock').textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration);activeLine();});
+setInterval(()=>{if(P.mode==='yt'&&P.yt&&P.yt.getCurrentTime&&!$('vStudio').classList.contains('hidden')){$('clock').textContent=fmt(P.t)+' / '+fmt(P.d);activeLine();}},300);
 $('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&(j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'Export is switched off in this prototype');};
 $('shareBtn').onclick=()=>{const j=state.job;if(j&&realMode()&&j.outputs.subtitles){location.href=j.outputs.subtitles+'?download=1';}else toast('Review link copied for your team');};
 
@@ -719,11 +795,11 @@ function css(v){return getComputedStyle(document.documentElement).getPropertyVal
 function drawWaves(){[['orig','wOrig'],['dub','wDub']].forEach(([k,id])=>{
   const c=$(id),p=state.peaks[k];if(!p)return;const dpr=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(!w)return;
   c.width=w*dpr;c.height=h*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
-  const on=state.track===k,col=on?css('--wave-b'):css('--wave-a'),prog=vid.duration?vid.currentTime/vid.duration:0;
+  const on=state.track===k,col=on?css('--wave-b'):css('--wave-a'),prog=P.d?P.t/P.d:0;
   const bw=w/p.length;p.forEach((v,i)=>{const bh=Math.max(2,v*(h-8));g.fillStyle=(i/p.length<=prog&&on)?css('--accent'):col;g.fillRect(i*bw,(h-bh)/2,Math.max(1,bw-1),bh);});
-  if(vid.duration){g.fillStyle=css('--ink');g.fillRect(prog*w-1,0,2,h);}
+  if(P.d){g.fillStyle=css('--ink');g.fillRect(prog*w-1,0,2,h);}
 });}
-['wOrig','wDub'].forEach(id=>$(id).addEventListener('click',e=>{if(!vid.duration)return;const r=e.currentTarget.getBoundingClientRect();vid.currentTime=(e.clientX-r.left)/r.width*vid.duration;}));
+['wOrig','wDub'].forEach(id=>$(id).addEventListener('click',e=>{if(!P.d)return;const r=e.currentTarget.getBoundingClientRect();P.t=(e.clientX-r.left)/r.width*P.d;}));
 (function loop(){if(!$('vStudio').classList.contains('hidden'))drawWaves();requestAnimationFrame(loop);})();
 window.addEventListener('resize',drawWaves);
 
@@ -739,18 +815,24 @@ async function postSetup(fd){
   let j={};try{j=await r.json()}catch(e){}
   if(r.status===401){location.href='/accounts/login/?next=/';throw new Error('Signed out');}
   if(!r.ok)throw new Error(j.error||'Could not save setup');return j;}
-function openSetup(){if(!server.canConfigure)return;$('setupStatus').textContent=(state.origBlob?'Original loaded. ':'')+(state.dubBlob?'Dub loaded.':'');$('setup').showModal();}
+function openSetup(){if(!server.canConfigure)return;$('setupStatus').textContent=(state.origYT?'Original: YouTube link. ':state.origBlob?'Original loaded. ':'')+(state.dubYT?'Dub: YouTube link.':state.dubBlob?'Dub loaded.':'');$('setup').showModal();}
 $('openSetup').onclick=openSetup;
 document.addEventListener('keydown',e=>{if((e.key==='p'||e.key==='P')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!document.activeElement.isContentEditable){e.preventDefault();openSetup();}});
-$('saveSetup').onclick=async e=>{e.preventDefault();const fo=$('fOrig').files[0],fd=$('fDub').files[0];$('setupStatus').textContent=(fo||fd)&&server.mode==='server'?'Uploading…':'Saving…';
-  if(server.mode==='server'){const form=new FormData();if(fo)form.append('original_video',fo);if(fd)form.append('dubbed_video',fd);form.append('script',$('segs').value);
-    try{await postSetup(form);}catch(err){$('setupStatus').textContent=err.message;return;}
+$('saveSetup').onclick=async e=>{e.preventDefault();const fo=$('fOrig').files[0],fd=$('fDub').files[0];
+  const uo=$('uOrig').value.trim(),ud=$('uDub').value.trim();
+  for(const [u,label] of [[uo,'original'],[ud,'dubbed']]){if(u&&!ytId(u)){$('setupStatus').textContent=`The ${label} link isn't a YouTube link. Paste one like https://youtu.be/abc123XYZ00.`;return;}}
+  $('setupStatus').textContent=(fo||fd)&&server.mode==='server'?'Uploading…':'Saving…';
+  if(server.mode==='server'){const form=new FormData();if(fo)form.append('original_video',fo);if(fd)form.append('dubbed_video',fd);
+    form.append('original_url',uo);form.append('dubbed_url',ud);form.append('script',$('segs').value);
+    let j;try{j=await postSetup(form);}catch(err){$('setupStatus').textContent=err.message;return;}
     $('fOrig').value='';$('fDub').value='';
-    if(fo)setOrig(fo);if(fd)setDub(fd);}
-  else{if(fo){setOrig(fo);await dbPut('orig',fo);}if(fd){setDub(fd);await dbPut('dub',fd);}lsSet('sy_segs',$('segs').value);}
+    if(fo)setOrig(fo);if(fd)setDub(fd);
+    const st=(j&&j.setup)||{};state.origYT=st.original_youtube_id||'';state.dubYT=st.dubbed_youtube_id||'';}
+  else{if(fo){setOrig(fo);await dbPut('orig',fo);}if(fd){setDub(fd);await dbPut('dub',fd);}lsSet('sy_segs',$('segs').value);
+    lsSet('sy_uorig',uo);lsSet('sy_udub',ud);state.origYT=ytId(uo);state.dubYT=ytId(ud);}
   state.segs=parseSegs($('segs').value);
   $('setupStatus').textContent='Saved';setTimeout(()=>$('setup').close(),400);
-  if(!$('vStudio').classList.contains('hidden')){setTrack(state.track,true);renderLines();computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}};
+  if(!$('vStudio').classList.contains('hidden')){setTrack(state.track==='dub'&&!hasDub()?'orig':state.track,true);renderLines();computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}};
 function setOrig(b){state.origBlob=b;if(state.origURL)URL.revokeObjectURL(state.origURL);state.origURL=URL.createObjectURL(b);
   const v=document.createElement('video');v.preload='metadata';v.src=state.origURL;v.onloadedmetadata=()=>{state.dur=v.duration;};}
 function setDub(b){state.dubBlob=b;if(state.dubURL)URL.revokeObjectURL(state.dubURL);state.dubURL=URL.createObjectURL(b);}
@@ -960,14 +1042,29 @@ function applyUser(u){
   if(server.mode==='server'){
     try{await loadProjects();}catch(e){toast(e.message);}
     const s=cfg.setup||{};if(s.script){$('segs').value=s.script;state.segs=parseSegs(s.script);}
-    const [o,d]=await Promise.all([s.original_video?fetchBlob(s.original_video):null,s.dubbed_video?fetchBlob(s.dubbed_video):null]);
+    $('uOrig').value=s.original_url||'';$('uDub').value=s.dubbed_url||'';state.origYT=s.original_youtube_id||'';state.dubYT=s.dubbed_youtube_id||'';
+    const [o,d]=await Promise.all([s.original_video&&!state.origYT?fetchBlob(s.original_video):null,s.dubbed_video&&!state.dubYT?fetchBlob(s.dubbed_video):null]);
     if(o)setOrig(o);if(d)setDub(d);
     if(!$('vStudio').classList.contains('hidden')){setTrack(state.track,true);computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}
   }else{
     const txt=lsGet('sy_segs');if(txt){$('segs').value=txt;state.segs=parseSegs(txt);}
+    const uo=lsGet('sy_uorig')||'',ud=lsGet('sy_udub')||'';$('uOrig').value=uo;$('uDub').value=ud;state.origYT=ytId(uo);state.dubYT=ytId(ud);
     const o=await dbGet('orig'),d=await dbGet('dub');if(o)setOrig(o);if(d)setDub(d);
   }
 })();
+})();
+</script>
+<script>
+/* Mobile sidebar: icon rail that expands on demand */
+(function(){
+  var app=document.querySelector('.app'), btn=document.getElementById('railToggle'), scrim=document.getElementById('scrim');
+  if(!app||!btn) return;
+  function set(open){app.classList.toggle('open',open);btn.setAttribute('aria-expanded',open?'true':'false');btn.setAttribute('aria-label',open?'Close menu':'Open menu');}
+  btn.addEventListener('click',function(){set(!app.classList.contains('open'));});
+  if(scrim) scrim.addEventListener('click',function(){set(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false);});
+  document.querySelectorAll('.side .nav button, .side .nav a, .side .acct a').forEach(function(el){el.addEventListener('click',function(){set(false);});});
+  window.matchMedia('(min-width:981px)').addEventListener('change',function(m){if(m.matches)set(false);});
 })();
 </script>
 </body>
