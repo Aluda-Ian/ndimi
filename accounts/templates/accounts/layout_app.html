@@ -33,31 +33,69 @@ main{padding:28px clamp(18px,4vw,48px) 60px;min-width:0}
   .nav{flex-direction:row;flex-wrap:wrap;margin-left:auto}
   .acct{margin:0;padding:0;border:0;flex-direction:row;width:100%;justify-content:flex-end}
 }
+/* ===== Mobile: sidebar collapses to an icon rail; the menu button opens it ===== */
+.railtoggle,.scrim{display:none}
+.side .ico{display:none;width:20px;height:20px;flex:none}
+@media (max-width:980px){
+  .app{grid-template-columns:64px minmax(0,1fr)}
+  .side{position:sticky;top:0;align-self:start;height:100vh;height:100dvh;width:64px;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:14px;padding:calc(12px + env(safe-area-inset-top,0px)) 8px calc(12px + env(safe-area-inset-bottom,0px));border-right:1px solid var(--line);border-bottom:0;overflow:hidden;z-index:40}
+  .railtoggle{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;color:var(--ink);cursor:pointer;flex:none}
+  .railtoggle:hover{background:var(--brand-soft)}
+  .railtoggle .ico{display:block}
+  .side .ico{display:block}
+  .brand{justify-content:center}
+  .brand > span:last-child{display:none}
+  .side .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .side .foot{display:none}
+  .nav{flex-direction:column;flex-wrap:nowrap;margin:0;width:100%;gap:4px}
+  .nav button,.nav a{box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:44px;padding:10px}
+  .acct{margin:auto 0 0;padding:0;border:0;width:100%;flex-direction:column;align-items:stretch;gap:4px}
+  .acct .uname{display:none}
+  .acct .links{flex-direction:column;flex-wrap:nowrap;gap:4px;width:100%}
+  .acct .links form{width:100%}
+  .acct .links a,.acct .links .link{box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:44px;padding:10px;border-radius:8px;color:var(--muted);font-weight:500}
+  .acct .links a.acct-only{display:none}
+  .acct .links a:hover,.acct .links .link:hover{color:var(--ink);background:var(--brand-soft)}
+  /* Open: the full sidebar slides over the page */
+  .app.open .side{position:fixed;left:0;top:0;bottom:0;width:min(264px,86vw);align-items:stretch;padding-inline:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:railin .18s ease-out}
+  .app.open .brand{justify-content:flex-start}
+  .app.open .brand > span:last-child{display:block}
+  .app.open .side .lbl{position:static;width:auto;height:auto;overflow:visible;clip:auto}
+  .app.open .nav button,.app.open .nav a,.app.open .acct .links a,.app.open .acct .links .link{justify-content:flex-start}
+  .app.open .acct .uname{display:flex;padding:0 10px}
+  .app.open .side .foot{display:block;padding:0 10px}
+  .app.open .scrim{display:block;position:fixed;inset:0;background:rgba(8,12,11,.45);z-index:39}
+  main{overflow-x:hidden}
+}
+@keyframes railin{from{transform:translateX(-24px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="app">
-  <aside class="side">
+  <aside class="side" id="sidebar">
+    <button class="railtoggle" id="railToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <a class="brand" href="/">
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
       <span><b>{{ site_settings.site_name|default:"Ndimi" }}</b><small>by Jeota Media</small></span>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="/">New dub</a>
-      <a href="/#projects">Projects</a>
-      {% if user.is_staff %}<a href="/#settings">Settings</a>{% endif %}
-      <a href="{% url 'account' %}" {% if request.path|slice:":10" == "/accounts/" %}aria-current="page"{% endif %}>Account</a>
+      <a href="/" title="New dub"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="lbl">New dub</span></a>
+      <a href="/#projects" title="Projects"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z"/></svg><span class="lbl">Projects</span></a>
+      {% if user.is_staff %}<a href="/#settings" title="Settings"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span class="lbl">Settings</span></a>{% endif %}
+      <a href="{% url 'account' %}" title="Account" {% if request.path|slice:":10" == "/accounts/" %}aria-current="page"{% endif %}><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg><span class="lbl">Account</span></a>
     </nav>
     <div class="acct">
       <div class="uname"><span>{{ user.get_username }}</span>{% if user.is_staff %}<b class="role">Admin</b>{% endif %}</div>
       <div class="links">
-        <a href="{% url 'account' %}">Account</a>
-        {% if user.is_staff %}<a href="/#settings">Admin</a>{% endif %}
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link" type="submit">Sign out</button></form>
+        <a class="acct-only" href="{% url 'account' %}">Account</a>
+        {% if user.is_staff %}<a href="/#settings" title="Admin"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6z"/></svg><span class="lbl">Admin</span></a>{% endif %}
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link" type="submit" title="Sign out"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg><span class="lbl">Sign out</span></button></form>
       </div>
     </div>
     <div class="foot">Kenyan languages, <em>filmed with, not about.</em></div>
   </aside>
+  <div class="scrim" id="scrim" aria-hidden="true"></div>
   <main>
     <div class="page">
       {% if messages %}{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}{% endif %}
@@ -65,5 +103,18 @@ main{padding:28px clamp(18px,4vw,48px) 60px;min-width:0}
     </div>
   </main>
 </div>
+<script>
+/* Mobile sidebar: icon rail that expands on demand */
+(function(){
+  var app=document.querySelector('.app'), btn=document.getElementById('railToggle'), scrim=document.getElementById('scrim');
+  if(!app||!btn) return;
+  function set(open){app.classList.toggle('open',open);btn.setAttribute('aria-expanded',open?'true':'false');btn.setAttribute('aria-label',open?'Close menu':'Open menu');}
+  btn.addEventListener('click',function(){set(!app.classList.contains('open'));});
+  if(scrim) scrim.addEventListener('click',function(){set(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false);});
+  document.querySelectorAll('.side .nav button, .side .nav a, .side .acct a').forEach(function(el){el.addEventListener('click',function(){set(false);});});
+  window.matchMedia('(min-width:981px)').addEventListener('change',function(m){if(m.matches)set(false);});
+})();
+</script>
 </body>
 </html>

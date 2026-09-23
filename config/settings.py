@@ -41,6 +41,7 @@ DEBUG = env('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver')
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
+CSRF_FAILURE_VIEW = 'config.views.csrf_failure'
 
 # On Vercel, trust the addresses Vercel assigns to this deployment automatically.
 for _var in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'):

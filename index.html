@@ -1024,6 +1024,7 @@ function applyUser(u){
   if(u.can_manage){$('adminLink').href='/#settings';$('adminLink').textContent='Admin';$('adminLink').classList.remove('hidden');
     $('adminLink').onclick=e=>{e.preventDefault();openManage();};}
   $('logoutCsrf').value=csrf();
+  $('logoutCsrf').form.addEventListener('submit',()=>{$('logoutCsrf').value=csrf();});
 }
 (async function init(){
   const cfg=await loadConfig();if(cfg==='redirect')return;

@@ -62,3 +62,20 @@ def protected_media(request, path):
         raise Http404('File not found.')
     content_type, _ = mimetypes.guess_type(target.name)
     return FileResponse(open(target, 'rb'), content_type=content_type or 'application/octet-stream')
+
+
+def csrf_failure(request, reason=''):
+    """Friendly replacement for Django's CSRF error page.
+
+    Usually means the page was open for a long time or you signed in elsewhere,
+    so its security token is out of date. Send people back to try again.
+    """
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    messages.error(request, 'That page had expired, so nothing was saved. Please try again.')
+    back = request.META.get('HTTP_REFERER', '')
+    if back and url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(back)
+    return redirect('/accounts/login/' if not request.user.is_authenticated else '/')

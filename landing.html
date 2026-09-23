@@ -32,6 +32,7 @@
   --dot:#2F3936; --screen:#070B0A; --screen-ink:#EAF2EF;
 }
 *,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--ground);color:var(--ink);font:400 17px/1.55 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit}
@@ -100,7 +101,8 @@ p{margin:0}
 .bar{display:flex;align-items:center;gap:8px;padding:8px 10px 12px}
 .bar i{width:11px;height:11px;border-radius:50%;background:#2A3533}
 .bar span{margin-left:10px;font-size:13px;color:#8FA19C}
-.ws{display:grid;grid-template-columns:1.45fr 1fr;gap:10px}
+.ws{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(0,1fr);gap:10px}
+.ws .side > .panel:not([hidden]):only-of-type,.ws .side > .panel:last-child{flex:1;display:flex;flex-direction:column;justify-content:center}
 .player{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:16/10;background:
   radial-gradient(120% 90% at 20% 110%,#C9782A 0%,transparent 55%),
   radial-gradient(90% 70% at 85% 0%,#1F6B63 0%,transparent 60%),
@@ -272,7 +274,8 @@ footer a:hover{color:var(--ink)}
             <div class="scrub"><b id="scrub"></b></div>
           </div>
           <div class="side">
-            <div class="panel">
+            <!-- Script card hidden for now; remove "hidden" to bring it back. -->
+            <div class="panel" hidden>
               <h3>Script</h3>
               <div id="segs"></div>
             </div>

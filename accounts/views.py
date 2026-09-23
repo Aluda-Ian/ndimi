@@ -6,6 +6,7 @@ from django.contrib.sessions.models import Session
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from system.models import SystemSettings
@@ -57,6 +58,7 @@ class SignInView(auth_views.LoginView):
         return response
 
 
+@csrf_exempt  # Signing out can't harm the account, and a stale page token shouldn't trap anyone signed in.
 def sign_out(request):
     """GET shows a confirmation page (so plain links work); POST signs out."""
     if request.method == 'POST':
