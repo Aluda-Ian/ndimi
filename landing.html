@@ -96,7 +96,7 @@ p{margin:0}
 .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
 
 /* ---------- demo window ---------- */
-.stage{padding-block:0 clamp(80px,10vw,140px)}
+.stage{padding-block:clamp(40px,6vw,96px) clamp(80px,10vw,140px)}
 .window{background:var(--screen);color:var(--screen-ink);border-radius:28px;padding:10px;box-shadow:0 40px 80px -40px rgba(8,40,36,.45)}
 .bar{display:flex;align-items:center;gap:8px;padding:8px 10px 12px}
 .bar i{width:11px;height:11px;border-radius:50%;background:#2A3533}
@@ -192,7 +192,7 @@ section.block{padding-block:clamp(72px,9vw,128px);border-top:1px solid var(--lin
 .ph ul{margin:6px 0 0;padding-left:18px;font-size:15px;color:var(--muted)}
 .ph.now ul{color:inherit;opacity:.88}
 
-.for{display:grid;grid-template-columns:repeat(4,1fr);gap:28px}
+.for{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:28px}
 .for h3{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
 .for p{color:var(--muted);font-size:15.5px}
 
@@ -212,6 +212,7 @@ footer a:hover{color:var(--ink)}
   .pipe{grid-template-columns:1fr 1fr;row-gap:8px}
   .phases{grid-template-columns:1fr}
   .for{grid-template-columns:1fr 1fr}
+  .for > :first-child{grid-column:1/-1}
   .links{display:none}
 }
 @media (max-width:560px){
@@ -365,6 +366,7 @@ footer a:hover{color:var(--ink)}
         <h2 id="for-title">Made for people who tell stories to their own.</h2>
       </div>
       <div class="for">
+        <div><h3>Brands &amp; agencies</h3><p>Translate and re-voice TV, radio and social ads for every region, without a new shoot.</p></div>
         <div><h3>NGO teams</h3><p>Put health, farming and rights messages in the language people use at home.</p></div>
         <div><h3>Church media</h3><p>Dub sermons and teaching videos for congregations across counties.</p></div>
         <div><h3>Creators</h3><p>Reach new audiences without re-shooting or hiring a studio.</p></div>
