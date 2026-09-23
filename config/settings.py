@@ -116,14 +116,23 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        # The dub worker and web server write at the same time; wait instead of failing.
-        'OPTIONS': {'timeout': 30},
+# Set DATABASE_URL (e.g. a Neon or Supabase Postgres URL) in production.
+# Without it, a local SQLite file is used for development.
+if env('DATABASE_URL'):
+    import dj_database_url
+
+    DATABASES = {
+        'default': dj_database_url.parse(env('DATABASE_URL'), conn_max_age=60, ssl_require=True),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            # The dub worker and web server write at the same time; wait instead of failing.
+            'OPTIONS': {'timeout': 30},
+        }
+    }
 
 
 # Password validation

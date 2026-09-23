@@ -6,3 +6,5 @@ django-cors-headers==4.9.0
 cryptography>=44
 requests>=2.32
 numpy>=1.26
+dj-database-url>=2.2
+psycopg[binary]>=3.2
