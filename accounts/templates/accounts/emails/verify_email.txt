@@ -1,0 +1,10 @@
+{% autoescape off %}Hi {{ user.get_username }},
+
+Please confirm this email address for your {{ site_name }} account:
+
+{{ link }}
+
+The link works for 3 days. If you didn't create an account, you can ignore this email.
+
+Jeota Media
+{% endautoescape %}

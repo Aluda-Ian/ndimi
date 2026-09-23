@@ -1,0 +1,11 @@
+{% extends "accounts/base.html" %}
+{% block title %}Confirm your email{% endblock %}
+{% block content %}
+<h1>Confirm your email</h1>
+<p class="lead">Before you can use {{ site_settings.site_name|default:"Ndimi" }}, open the link we sent to <b>{{ user.email|default:"your email" }}</b>.</p>
+{% if user.email %}
+<form method="post" action="{% url 'resend_verification' %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'home' %}"><button class="btn" type="submit">Send a new link</button></form>
+{% endif %}
+<p class="alt">Wrong address? <a href="{% url 'account' %}">Update it on your account page</a></p>
+<p class="alt"><a href="{% url 'logout' %}">Sign out</a></p>
+{% endblock %}

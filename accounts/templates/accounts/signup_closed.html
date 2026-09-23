@@ -1,0 +1,7 @@
+{% extends "accounts/base.html" %}
+{% block title %}Sign-up closed{% endblock %}
+{% block content %}
+<h1>Sign-up is closed</h1>
+<p class="lead">New accounts are created by our team for now.{% if site.support_email %} Email <a href="mailto:{{ site.support_email }}">{{ site.support_email }}</a> to request access.{% endif %}</p>
+<p class="alt">Already have an account? <a href="{% url 'login' %}">Sign in</a></p>
+{% endblock %}

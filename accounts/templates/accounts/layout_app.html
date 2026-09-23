@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>{% block title %}{% endblock %} · {{ site_settings.site_name|default:"Ndimi" }}</title>
+{% include "accounts/_head.html" %}
+<style>
+/* Same shell as the dashboard (index.html) so account pages feel part of the app. */
+body{margin:0;background:var(--canvas);color:var(--ink);font:400 16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{background:var(--surface);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:28px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{padding:9px 12px;border-radius:8px;font-weight:500;color:var(--muted);text-decoration:none}
+.nav a[aria-current="page"]{background:var(--brand-soft);color:var(--ink)}
+.nav a:hover{color:var(--ink)}
+.acct{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+.acct .uname{font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
+.acct .uname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .role{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--brand-soft);color:var(--ink)}
+.acct .links{display:flex;gap:14px;flex-wrap:wrap}
+.acct a,.acct .link{all:unset;cursor:pointer;color:var(--brand);font-weight:600}
+.acct form{margin:0}
+.side .foot{font-size:13px;color:var(--muted)}
+.side .foot em{font-style:normal;color:var(--ink);font-weight:600}
+main{padding:28px clamp(18px,4vw,48px) 60px;min-width:0}
+.page{max-width:640px}
+.page > h1:first-of-type{font:700 clamp(26px,3.2vw,36px)/1.1 var(--display);letter-spacing:-.02em;margin:0 0 8px}
+.page .topnav{display:none}
+.page .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+@media (max-width:980px){
+  .app{grid-template-columns:1fr}
+  .side{flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:14px 18px;border-right:0;border-bottom:1px solid var(--line)}
+  .side .foot,.acct .uname{display:none}
+  .nav{flex-direction:row;flex-wrap:wrap;margin-left:auto}
+  .acct{margin:0;padding:0;border:0;flex-direction:row;width:100%;justify-content:flex-end}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span><b>{{ site_settings.site_name|default:"Ndimi" }}</b><small>by Jeota Media</small></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="/">New dub</a>
+      <a href="/#projects">Projects</a>
+      {% if user.is_staff %}<a href="/#settings">Settings</a>{% endif %}
+      <a href="{% url 'account' %}" {% if request.path|slice:":10" == "/accounts/" %}aria-current="page"{% endif %}>Account</a>
+    </nav>
+    <div class="acct">
+      <div class="uname"><span>{{ user.get_username }}</span>{% if user.is_staff %}<b class="role">Admin</b>{% endif %}</div>
+      <div class="links">
+        <a href="{% url 'account' %}">Account</a>
+        {% if user.is_staff %}<a href="/#settings">Admin</a>{% endif %}
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link" type="submit">Sign out</button></form>
+      </div>
+    </div>
+    <div class="foot">Kenyan languages, <em>filmed with, not about.</em></div>
+  </aside>
+  <main>
+    <div class="page">
+      {% if messages %}{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}{% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

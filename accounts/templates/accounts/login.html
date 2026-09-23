@@ -1,0 +1,16 @@
+{% extends "accounts/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Sign in</h1>
+<p class="lead">Sign in to dub videos into Kenyan languages.</p>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% include "accounts/_fields.html" %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn" type="submit">Sign in</button>
+</form>
+<p class="alt"><a href="{% url 'password_reset' %}">Forgot your password?</a></p>
+{% if not site_settings or site_settings.allow_signup %}
+<p class="alt">New to Ndimi? <a href="{% url 'signup' %}">Create an account</a></p>
+{% endif %}
+{% endblock %}

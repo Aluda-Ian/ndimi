@@ -1,0 +1,18 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Ndimi control room{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <section class="ndimi-welcome">
+    <div>
+      <h2>Welcome to Ndimi</h2>
+      <p>Manage languages, demo media, users, integrations, and the platform settings that power the Kenyan-language dubbing workspace.</p>
+    </div>
+    <span class="tag">CONTROL ROOM</span>
+  </section>
+
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}

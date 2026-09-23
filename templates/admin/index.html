@@ -1,0 +1,67 @@
+{% extends "admin/index.html" %}
+{% load ndimi_admin %}
+
+{% block content %}
+{% ndimi_dashboard as d %}
+<div class="nd-dash">
+  <div class="nd-hello">
+    <div>
+      <h1 style="margin:0">Karibu, {{ user.first_name|default:user.get_username }}</h1>
+      <p>Here's how {{ site_settings.site_name|default:"Ndimi" }} is doing.</p>
+    </div>
+    <a class="button" href="/" style="padding:10px 16px">Open the app</a>
+  </div>
+
+  {% if d.site.maintenance %}<div class="nd-alert danger"><b>Maintenance mode is on.</b> Users can't use the app. <a href="{% url 'admin:system_systemsettings_changelist' %}">Turn it off</a></div>{% endif %}
+  {% if d.dubs.worker_idle %}<div class="nd-alert"><b>Dubs are waiting but nothing is processing.</b> Is the dub worker running? Start it with <code>python manage.py run_dub_worker</code></div>{% endif %}
+  {% if d.email and not d.email.enabled %}<div class="nd-alert">Email is off, so password resets and confirmations are only printed in the server console. <a href="{% url 'admin:system_emailsettings_changelist' %}">Set up SMTP</a></div>{% endif %}
+
+  <div class="nd-grid">
+    {% if d.dubs %}
+    <a class="nd-card" href="{% url 'admin:dubbing_dubjob_changelist' %}?status__exact=running"><div class="k">Dubs in progress</div><div class="v">{{ d.dubs.active }}</div><div class="s">{{ d.dubs.running }} running now</div></a>
+    <a class="nd-card {% if d.dubs.review %}warn{% endif %}" href="{% url 'admin:dubbing_dubjob_changelist' %}?status__exact=review"><div class="k">Waiting for review</div><div class="v">{{ d.dubs.review }}</div><div class="s">Scripts to approve</div></a>
+    <a class="nd-card good" href="{% url 'admin:dubbing_dubjob_changelist' %}?status__exact=completed"><div class="k">Finished this week</div><div class="v">{{ d.dubs.done_week }}</div><div class="s">Completed dubs</div></a>
+    <a class="nd-card {% if d.dubs.failed_week %}bad{% endif %}" href="{% url 'admin:dubbing_dubjob_changelist' %}?status__exact=failed"><div class="k">Failed this week</div><div class="v">{{ d.dubs.failed_week }}</div><div class="s">Open to see why</div></a>
+    {% endif %}
+    {% if d.users %}
+    <a class="nd-card" href="{% url 'admin:auth_user_changelist' %}"><div class="k">Users</div><div class="v">{{ d.users.total }}</div><div class="s">+{{ d.users.new_week }} this week · {{ d.users.active_week }} active</div></a>
+    {% endif %}
+    {% if d.integrations %}
+    <a class="nd-card" href="{% url 'admin:system_integration_changelist' %}"><div class="k">Integrations on</div><div class="v">{{ d.integrations.enabled }}<span style="font-size:16px;color:var(--n-muted)"> / {{ d.integrations.total }}</span></div><div class="s">API keys and services</div></a>
+    {% endif %}
+  </div>
+
+  <div class="nd-cols">
+    {% if d.dubs %}
+    <div class="nd-panel">
+      <h3>Latest dubs</h3>
+      {% if d.dubs.recent %}
+      <ul class="nd-list">
+        {% for job in d.dubs.recent %}
+        <li>
+          <div><a href="{% url 'admin:dubbing_dubjob_change' job.pk %}">{{ job.name|truncatechars:48 }}</a>
+            <div class="meta">{{ job.owner.get_username }} · {{ job.target_language }} · {{ job.created_at|timesince }} ago</div></div>
+          <span class="nd-pill {{ job.status }}">{{ job.get_status_display }}{% if job.status == 'running' %} {{ job.progress }}%{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="nd-empty">No dubs yet.</div>{% endif %}
+    </div>
+    {% endif %}
+    <div class="nd-panel">
+      <h3>Quick settings</h3>
+      <div class="nd-links">
+        {% if perms.dubbing.view_dubbingsettings %}<a href="{% url 'admin:dubbing_dubbingsettings_changelist' %}">Dubbing engine</a>{% endif %}
+        {% if perms.system.view_integration %}<a href="{% url 'admin:system_integration_changelist' %}">Integrations</a>{% endif %}
+        {% if perms.system.view_emailsettings %}<a href="{% url 'admin:system_emailsettings_changelist' %}">Email (SMTP)</a>{% endif %}
+        {% if perms.system.view_systemsettings %}<a href="{% url 'admin:system_systemsettings_changelist' %}">System settings</a>{% endif %}
+        {% if perms.projects.view_language %}<a href="{% url 'admin:projects_language_changelist' %}">Languages</a>{% endif %}
+        {% if perms.auth.view_group %}<a href="{% url 'admin:auth_group_changelist' %}">Access rights</a>{% endif %}
+        {% if perms.auth.view_user %}<a href="{% url 'admin:auth_user_changelist' %}">Users</a>{% endif %}
+        {% if perms.admin.view_logentry %}<a href="{% url 'admin:admin_logentry_changelist' %}">Activity log</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{{ block.super }}
+{% endblock %}

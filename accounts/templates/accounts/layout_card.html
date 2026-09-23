@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>{% block title %}{% endblock %} · {{ site_settings.site_name|default:"Ndimi" }}</title>
+{% include "accounts/_head.html" %}
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--canvas);color:var(--ink);font:400 16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+.card{width:min(420px,100%);background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px}
+.card .brand{margin-bottom:22px}
+</style>
+</head>
+<body>
+<main class="card {% block card_class %}{% endblock %}">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span><b>Ndimi</b><small>by Jeota Media</small></span>
+  </div>
+  {% if messages %}{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

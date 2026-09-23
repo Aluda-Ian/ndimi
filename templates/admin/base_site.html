@@ -1,0 +1,150 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Ndimi admin{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== Ndimi brand for Django admin ===== */
+html[data-theme="light"], :root {
+  --n-canvas:#EDEFEA; --n-surface:#FFFFFF; --n-ink:#15171C; --n-muted:#5E636B; --n-line:#D9DCD4;
+  --n-brand:#0B6E66; --n-brand-dark:#085650; --n-brand-soft:#D7ECE8; --n-accent:#E9A21B; --n-accent-soft:#FBEFD2;
+  --n-danger:#B42318; --n-danger-soft:#FDE8E6;
+  --primary:var(--n-brand); --secondary:var(--n-brand); --accent:var(--n-accent); --primary-fg:#fff;
+  --body-fg:var(--n-ink); --body-bg:var(--n-canvas); --body-quiet-color:var(--n-muted); --body-medium-color:#3A3E45; --body-loud-color:var(--n-ink);
+  --header-color:var(--n-ink); --header-branding-color:var(--n-ink); --header-bg:var(--n-surface); --header-link-color:var(--n-brand);
+  --breadcrumbs-fg:var(--n-muted); --breadcrumbs-link-fg:var(--n-brand); --breadcrumbs-bg:var(--n-canvas);
+  --link-fg:var(--n-brand); --link-hover-color:var(--n-brand-dark); --link-selected-fg:var(--n-brand-dark);
+  --hairline-color:var(--n-line); --border-color:var(--n-line);
+  --error-fg:var(--n-danger); --message-success-bg:var(--n-brand-soft); --message-warning-bg:var(--n-accent-soft); --message-error-bg:var(--n-danger-soft);
+  --darkened-bg:#F5F6F2; --selected-bg:var(--n-brand-soft); --selected-row:var(--n-accent-soft);
+  --button-fg:#fff; --button-bg:var(--n-brand); --button-hover-bg:var(--n-brand-dark);
+  --default-button-bg:var(--n-brand-dark); --default-button-hover-bg:var(--n-brand);
+  --close-button-bg:#6B7079; --close-button-hover-bg:var(--n-ink);
+  --delete-button-bg:var(--n-danger); --delete-button-hover-bg:#8F1C13;
+  --object-tools-fg:#fff; --object-tools-bg:var(--n-muted); --object-tools-hover-bg:var(--n-brand);
+  --font-family-primary:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  --n-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --n-canvas:#101312; --n-surface:#181C1B; --n-ink:#ECEEEA; --n-muted:#9AA09C; --n-line:#2A302E;
+    --n-brand:#3FB7A9; --n-brand-dark:#5CC9BC; --n-brand-soft:#173532; --n-accent:#F2B745; --n-accent-soft:#3A2E14;
+    --n-danger:#F97066; --n-danger-soft:#3A1714;
+    --primary-fg:#0C1211; --button-fg:#0C1211; --object-tools-fg:#0C1211;
+    --body-medium-color:#C9CDC8; --darkened-bg:#141817; --close-button-bg:#3A403E; --close-button-hover-bg:#555;
+  }
+}
+html[data-theme="dark"] {
+  --n-canvas:#101312; --n-surface:#181C1B; --n-ink:#ECEEEA; --n-muted:#9AA09C; --n-line:#2A302E;
+  --n-brand:#3FB7A9; --n-brand-dark:#5CC9BC; --n-brand-soft:#173532; --n-accent:#F2B745; --n-accent-soft:#3A2E14;
+  --n-danger:#F97066; --n-danger-soft:#3A1714;
+  --primary-fg:#0C1211; --button-fg:#0C1211; --object-tools-fg:#0C1211;
+  --body-medium-color:#C9CDC8; --darkened-bg:#141817; --close-button-bg:#3A403E; --close-button-hover-bg:#555;
+}
+
+body { -webkit-font-smoothing:antialiased; }
+h1, h2, #site-name, .module caption, .module h2 { font-family:var(--n-display); letter-spacing:-.01em; }
+#content h1 { font-size:28px; font-weight:700; }
+
+#header { border-bottom:1px solid var(--n-line); padding:12px 28px; box-shadow:none; }
+#site-name a.ndimi-brand { display:flex; align-items:center; gap:10px; color:var(--n-ink); text-decoration:none; }
+.ndimi-mark { display:flex; align-items:center; gap:3px; height:26px; }
+.ndimi-mark i { display:block; width:4px; border-radius:2px; background:var(--n-brand); }
+.ndimi-mark i:nth-child(1){height:9px} .ndimi-mark i:nth-child(2){height:20px}
+.ndimi-mark i:nth-child(3){height:26px;background:var(--n-accent)} .ndimi-mark i:nth-child(4){height:15px} .ndimi-mark i:nth-child(5){height:7px}
+.ndimi-name b { display:block; font:700 20px/1 var(--n-display); }
+.ndimi-name small { display:block; font:500 12px/1.2 var(--font-family-primary); color:var(--n-muted); margin-top:3px; letter-spacing:0; }
+#user-tools { color:var(--n-muted); font-size:13px; }
+#user-tools a { border-bottom:0; color:var(--n-brand); font-weight:600; }
+#user-tools a:hover { text-decoration:underline; }
+#logout-form button { color:var(--n-brand); font-weight:600; }
+.theme-toggle svg.theme-icon-when-auto, .theme-toggle svg.theme-icon-when-dark, .theme-toggle svg.theme-icon-when-light { fill:var(--n-muted); color:var(--n-muted); }
+
+div.breadcrumbs { border-bottom:1px solid var(--n-line); padding:10px 28px; font-size:13px; }
+#content { padding:24px 28px; }
+
+.module, #changelist, .inline-group, fieldset.module { border-radius:14px; }
+.module { background:var(--n-surface); border:1px solid var(--n-line); overflow:hidden; }
+.module caption, .inline-group h2, .module h2 { background:transparent; color:var(--n-ink); font-size:15px; font-weight:700; padding:12px 14px; border-bottom:1px solid var(--n-line); text-transform:none; letter-spacing:0; }
+.module caption a, .module h2 a { color:var(--n-ink); }
+#content-related .module h2 { background:transparent; color:var(--n-ink); }
+fieldset.module h2, fieldset .fieldset-heading { background:var(--n-brand-soft); color:var(--n-ink); }
+.module table { width:100%; }
+td, th { border-bottom-color:var(--n-line); }
+thead th, tfoot td { background:var(--darkened-bg); color:var(--n-muted); border-color:var(--n-line); }
+#changelist-filter { border-radius:14px; border:1px solid var(--n-line); overflow:hidden; }
+#changelist-filter h2 { background:transparent; color:var(--n-ink); font-family:var(--n-display); }
+#changelist .toplinks, #toolbar { background:var(--n-surface); border-radius:12px; }
+#toolbar { border:1px solid var(--n-line); }
+
+.button, input[type=submit], input[type=button], .submit-row input, a.button, .selector-chosen h2 { border-radius:10px; font-weight:600; }
+.submit-row { background:var(--n-surface); border:1px solid var(--n-line); border-radius:12px; }
+.submit-row a.deletelink { border-radius:10px; }
+.object-tools a:link, .object-tools a:visited { border-radius:999px; }
+input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], input[type=search], textarea, select, .vTextField {
+  border-radius:8px; border:1px solid var(--n-line); background:var(--n-surface); padding:7px 9px; }
+input:focus, textarea:focus, select:focus { outline:2px solid var(--n-accent); outline-offset:1px; border-color:var(--n-brand); }
+ul.messagelist li { border-radius:10px; margin-bottom:8px; }
+
+/* Sidebar */
+#nav-sidebar { background:var(--n-surface); border-right:1px solid var(--n-line); }
+#nav-sidebar .module { border:0; border-radius:0; }
+#nav-sidebar .current-app .section:link, #nav-sidebar .current-app .section:visited { color:var(--n-brand); font-weight:700; }
+#nav-sidebar .current-model { background:var(--n-brand-soft); }
+.toggle-nav-sidebar { background:var(--n-surface); border-color:var(--n-line); color:var(--n-muted); }
+
+/* Login */
+body.login { background:var(--n-canvas); }
+.login #container { border-radius:16px; border:1px solid var(--n-line); background:var(--n-surface); overflow:hidden; }
+.login #header { justify-content:center; }
+.login .submit-row input { width:100%; padding:12px; }
+
+/* ===== Dashboard ===== */
+.nd-dash { margin:0 0 26px; }
+.nd-hello { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+.nd-hello p { margin:4px 0 0; color:var(--n-muted); font-size:15px; }
+.nd-alert { border-radius:12px; padding:12px 14px; margin:0 0 14px; font-size:14px; background:var(--n-accent-soft); color:var(--n-ink); }
+.nd-alert.danger { background:var(--n-danger-soft); color:var(--n-danger); }
+.nd-alert code { background:var(--n-surface); padding:2px 6px; border-radius:6px; }
+.nd-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:14px; }
+.nd-card { background:var(--n-surface); border:1px solid var(--n-line); border-radius:14px; padding:16px; text-decoration:none!important; color:var(--n-ink)!important; display:block; }
+a.nd-card:hover { border-color:var(--n-brand); }
+.nd-card .k { font-size:13px; color:var(--n-muted); font-weight:500; }
+.nd-card .v { font:700 30px/1.1 var(--n-display); margin-top:6px; color:var(--n-ink); }
+.nd-card .s { font-size:12.5px; color:var(--n-muted); margin-top:4px; }
+.nd-card.warn .v { color:#B7791F; } .nd-card.bad .v { color:var(--n-danger); } .nd-card.good .v { color:var(--n-brand); }
+.nd-cols { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:12px; }
+@media (max-width:1024px){ .nd-cols { grid-template-columns:1fr; } }
+.nd-panel { background:var(--n-surface); border:1px solid var(--n-line); border-radius:14px; overflow:hidden; }
+.nd-panel h3 { font:700 15px/1.2 var(--n-display); margin:0; padding:12px 14px; border-bottom:1px solid var(--n-line); color:var(--n-ink); }
+.nd-list { list-style:none; margin:0; padding:0; }
+.nd-list li { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--n-line); font-size:14px; }
+.nd-list li:last-child { border-bottom:0; }
+.nd-list .meta { color:var(--n-muted); font-size:12.5px; }
+.nd-pill { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--darkened-bg); color:var(--n-ink); white-space:nowrap; }
+.nd-pill.completed { background:var(--n-brand-soft); } .nd-pill.review { background:var(--n-accent-soft); }
+.nd-pill.failed { background:var(--n-danger-soft); color:var(--n-danger); } .nd-pill.running, .nd-pill.queued { background:#DCEBFA; color:#1D4F85; }
+.nd-links { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+.nd-links a { padding:12px 14px; border-bottom:1px solid var(--n-line); font-weight:600; font-size:14px; }
+.nd-links a:nth-child(odd) { border-right:1px solid var(--n-line); }
+.nd-empty { padding:16px 14px; color:var(--n-muted); font-size:14px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .nd-pill.running, :root:not([data-theme="light"]) .nd-pill.queued { background:#1B2F45; color:#9CC7F0; } }
+html[data-theme="dark"] .nd-pill.running, html[data-theme="dark"] .nd-pill.queued { background:#1B2F45; color:#9CC7F0; }
+</style>
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" class="ndimi-brand">
+    <span class="ndimi-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="ndimi-name"><b>{{ site_settings.site_name|default:"Ndimi" }}</b><small>Admin · Jeota Media</small></span>
+  </a>
+</div>
+{% if user.is_anonymous %}{% include "admin/color_theme_toggle.html" %}{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

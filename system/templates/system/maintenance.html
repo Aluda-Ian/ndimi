@@ -1,0 +1,12 @@
+{% extends "accounts/base.html" %}
+{% block title %}Down for maintenance{% endblock %}
+{% block content %}
+<h1>Back soon</h1>
+<p class="lead">{{ site.maintenance_message|default:"We're updating Ndimi. Please check back soon." }}</p>
+{% if site.support_email %}<p class="alt">Questions? <a href="mailto:{{ site.support_email }}">{{ site.support_email }}</a></p>{% endif %}
+{% if not user.is_authenticated %}
+<p class="alt"><a href="{% url 'login' %}">Team sign in</a></p>
+{% else %}
+<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn" type="submit" style="margin-top:18px">Sign out</button></form>
+{% endif %}
+{% endblock %}

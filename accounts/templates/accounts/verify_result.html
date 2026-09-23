@@ -1,0 +1,13 @@
+{% extends "accounts/base.html" %}
+{% block title %}{% if ok %}Email confirmed{% else %}Link not valid{% endif %}{% endblock %}
+{% block content %}
+{% if ok %}
+<h1>Email confirmed</h1>
+<p class="lead">Thanks, {{ verified_user.get_username }}. {{ verified_user.email }} is confirmed.</p>
+<a class="btn" href="{% url 'home' %}" style="display:block;text-align:center;text-decoration:none">Continue</a>
+{% else %}
+<h1>This link isn't valid</h1>
+<p class="lead">Confirmation links expire after 3 days, and stop working if you change your email. Sign in and send a new one from your account page.</p>
+<a class="btn" href="{% url 'account' %}" style="display:block;text-align:center;text-decoration:none">Go to your account</a>
+{% endif %}
+{% endblock %}

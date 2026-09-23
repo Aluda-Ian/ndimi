@@ -1,0 +1,12 @@
+{% extends "accounts/base.html" %}
+{% block title %}Delete account{% endblock %}
+{% block content %}
+<div class="topnav"><a href="{% url 'account' %}">← Your account</a></div>
+<h1>Delete your account</h1>
+<p class="lead">This permanently deletes <b>{{ user.get_username }}</b> and your projects. It can't be undone.</p>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% include "accounts/_fields.html" %}
+  <button class="btn danger" type="submit">Delete my account</button>
+</form>
+{% endblock %}

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ndimi</title>
+<meta name="description" content="Ndimi dubs video into Kenyan languages. Upload a clip, pick Kiswahili, Gĩkũyũ, Dholuo, Kalenjin, Maa, Somali or Oluluhya, and get it back in a new voice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#F3F5F1; --surface:#FFFFFF; --raised:#E8ECE6; --ink:#121614; --muted:#59615D; --line:#DCE1DA;
+  --brand:#0B6E66; --brand-soft:#D5EAE5; --brand-ink:#FFFFFF; --accent:#E9A21B; --accent-soft:#FBEFD2;
+  --dot:#B9C2BC; --screen:#0F1A18; --screen-ink:#EAF2EF;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  --gutter:clamp(16px,4vw,48px); --max:1240px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0C100F; --surface:#141A18; --raised:#1B2220; --ink:#E9EEEA; --muted:#98A29D; --line:#26302D;
+    --brand:#3FB7A9; --brand-soft:#15332F; --brand-ink:#0B1110; --accent:#F2B745; --accent-soft:#3A2E14;
+    --dot:#2F3936; --screen:#070B0A; --screen-ink:#EAF2EF;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0C100F; --surface:#141A18; --raised:#1B2220; --ink:#E9EEEA; --muted:#98A29D; --line:#26302D;
+  --brand:#3FB7A9; --brand-soft:#15332F; --brand-ink:#0B1110; --accent:#F2B745; --accent-soft:#3A2E14;
+  --dot:#2F3936; --screen:#070B0A; --screen-ink:#EAF2EF;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 17px/1.55 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+p{margin:0}
+.wrap{max-width:var(--max);margin-inline:auto;padding-inline:var(--gutter)}
+
+/* ---------- nav ---------- */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--ground) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:68px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:700 22px/1 var(--display);letter-spacing:-.02em}
+.mark{display:flex;align-items:center;gap:3px;height:24px}
+.mark i{display:block;width:4px;border-radius:2px;background:var(--brand)}
+.mark i:nth-child(1){height:9px}.mark i:nth-child(2){height:19px}.mark i:nth-child(3){height:24px;background:var(--accent)}.mark i:nth-child(4){height:14px}.mark i:nth-child(5){height:7px}
+.links{display:flex;gap:24px;margin-left:12px}
+.links a{text-decoration:none;color:var(--muted);font-weight:500;font-size:15px}
+.links a:hover{color:var(--ink)}
+.nav .end{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;border-radius:999px;font:600 15px/1 var(--body);padding:13px 22px;border:1px solid transparent;cursor:pointer;transition:transform .15s ease,background .15s ease}
+.btn:active{transform:scale(.98)}
+.btn.solid{background:var(--ink);color:var(--ground)}
+.btn.solid:hover{background:var(--brand);color:var(--brand-ink)}
+.btn.line{border-color:var(--line);background:var(--surface)}
+.btn.line:hover{border-color:var(--ink)}
+.btn.quiet{padding-inline:12px;color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn.big{padding:17px 28px;font-size:16px}
+
+/* ---------- hero ---------- */
+.hero{position:relative;overflow:hidden}
+#field{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero .wrap{position:relative;padding-block:clamp(72px,12vw,150px) clamp(64px,9vw,120px);pointer-events:none}
+.hero .wrap a,.hero .wrap button{pointer-events:auto}
+.made{display:inline-flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px 7px 8px}
+.made b{background:var(--brand-soft);color:var(--ink);font-weight:600;border-radius:999px;padding:3px 10px;font-size:13px}
+.hero h1{font-weight:800;font-size:clamp(46px,8.6vw,124px);line-height:.93;letter-spacing:-.045em;margin-top:28px;max-width:11ch}
+.hero h1 .into{display:block;color:var(--muted);font-weight:500}
+.lang{display:inline-block;color:var(--brand);min-width:1ch;white-space:nowrap}
+.lang .caret{display:inline-block;width:.06em;height:.78em;background:var(--accent);margin-left:.06em;vertical-align:-.04em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.hero .sub{font-size:clamp(18px,1.6vw,21px);color:var(--muted);max-width:40ch;margin-top:30px}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
+
+/* ---------- demo window ---------- */
+.stage{padding-block:0 clamp(80px,10vw,140px)}
+.window{background:var(--screen);color:var(--screen-ink);border-radius:28px;padding:10px;box-shadow:0 40px 80px -40px rgba(8,40,36,.45)}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 10px 12px}
+.bar i{width:11px;height:11px;border-radius:50%;background:#2A3533}
+.bar span{margin-left:10px;font-size:13px;color:#8FA19C}
+.ws{display:grid;grid-template-columns:1.45fr 1fr;gap:10px}
+.player{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:16/10;background:
+  radial-gradient(120% 90% at 20% 110%,#C9782A 0%,transparent 55%),
+  radial-gradient(90% 70% at 85% 0%,#1F6B63 0%,transparent 60%),
+  linear-gradient(180deg,#27403B 0%,#6C5A3A 70%,#3A2A17 100%)}
+.player .hill{position:absolute;left:-5%;right:-5%;bottom:0;height:42%;background:#1C1A12;clip-path:polygon(0 60%,12% 38%,26% 55%,41% 25%,57% 48%,72% 30%,86% 52%,100% 36%,100% 100%,0 100%)}
+.player .sun{position:absolute;right:18%;top:22%;width:13%;aspect-ratio:1;border-radius:50%;background:#F2B745;opacity:.9}
+.tog{position:absolute;top:14px;left:14px;display:flex;background:rgba(7,11,10,.55);backdrop-filter:blur(8px);border-radius:999px;padding:4px}
+.tog button{all:unset;cursor:pointer;font:600 13px/1 var(--body);padding:8px 13px;border-radius:999px;color:#C6D3CF}
+.tog button[aria-pressed="true"]{background:var(--screen-ink);color:#0F1A18}
+.tog button:focus-visible{outline:2px solid var(--accent)}
+.sub-line{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);width:max-content;max-width:88%;text-align:center;font:500 clamp(14px,1.6vw,19px)/1.35 var(--body);background:rgba(7,11,10,.72);padding:8px 14px;border-radius:10px}
+.scrub{position:absolute;left:14px;right:14px;bottom:10px;height:3px;border-radius:2px;background:rgba(255,255,255,.18)}
+.scrub b{display:block;height:100%;width:0;background:var(--accent);border-radius:2px}
+.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel{background:#131F1D;border-radius:20px;padding:16px}
+.panel h3{font:600 13px/1 var(--body);color:#8FA19C;margin-bottom:12px}
+.seg{display:grid;grid-template-columns:44px 1fr;gap:4px 10px;padding:10px;border-radius:12px;transition:background .25s}
+.seg.on{background:#1D2D2A}
+.seg time{font-size:12px;color:#8FA19C;font-variant-numeric:tabular-nums;padding-top:2px}
+.seg .en{font-size:13px;color:#8FA19C}
+.seg .sw{grid-column:2;font-size:15px;color:var(--screen-ink)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.steps li{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#8FA19C}
+.steps li::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;border:1.5px solid #3D4F4B}
+.steps li.done{color:#C6D3CF}
+.steps li.done::before{background:#3FB7A9;border-color:#3FB7A9}
+.steps li.now{color:var(--screen-ink)}
+.steps li.now::before{border-color:#F2B745;background:#F2B745;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(242,183,69,.2)}}
+.caption{font-size:14px;color:var(--muted);margin-top:14px;text-align:center}
+
+/* ---------- sections ---------- */
+section.block{padding-block:clamp(72px,9vw,128px);border-top:1px solid var(--line)}
+.head{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:end;margin-bottom:clamp(40px,5vw,64px)}
+.head h2{font-weight:700;font-size:clamp(36px,5vw,68px);line-height:.98;letter-spacing:-.035em}
+.head p{color:var(--muted);max-width:44ch;font-size:18px}
+
+.pipe{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:0;counter-reset:s}
+.pipe li{counter-increment:s;padding:22px 20px 26px 0;border-top:2px solid var(--line);position:relative}
+.pipe li::before{content:counter(s);display:block;font:700 15px/1 var(--display);color:var(--brand);margin-bottom:40px}
+.pipe li::after{content:"";position:absolute;top:-2px;left:0;height:2px;width:0;background:var(--brand);transition:width .6s ease}
+.pipe.go li::after{width:100%}
+.pipe.go li:nth-child(2)::after{transition-delay:.25s}.pipe.go li:nth-child(3)::after{transition-delay:.5s}.pipe.go li:nth-child(4)::after{transition-delay:.75s}.pipe.go li:nth-child(5)::after{transition-delay:1s}
+.pipe h3{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+.pipe p{color:var(--muted);font-size:15.5px;max-width:26ch}
+
+.langs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:24px;overflow:hidden}
+.l{background:var(--surface);padding:26px 24px 24px;display:flex;flex-direction:column;gap:6px;min-height:170px}
+.l .n{font:700 clamp(26px,2.6vw,34px)/1.05 var(--display);letter-spacing:-.03em}
+.l .e{color:var(--muted);font-size:15px}
+.l .chip{margin-top:auto;align-self:flex-start;font-size:13px;font-weight:600;border-radius:999px;padding:5px 11px;background:var(--raised);color:var(--muted)}
+.l .chip.live{background:var(--brand-soft);color:var(--ink)}
+.l .chip.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brand);margin-right:7px;vertical-align:1px}
+.l.more{background:var(--ground)}
+.l.more .n{color:var(--muted)}
+.meters{display:flex;gap:3px;align-items:flex-end;height:22px;margin-bottom:10px}
+.meters i{width:4px;border-radius:2px;background:var(--dot)}
+.l.live-l .meters i{background:var(--brand)}
+
+.phases{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.ph{border-radius:24px;padding:28px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
+.ph.now{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.ph .when{font-size:14px;font-weight:600;color:var(--muted)}
+.ph.now .when{color:inherit;opacity:.8}
+.ph h3{font-size:clamp(28px,3vw,38px);font-weight:700;letter-spacing:-.03em;line-height:1}
+.ph p{font-size:16px;color:var(--muted)}
+.ph.now p{color:inherit;opacity:.88}
+.ph ul{margin:6px 0 0;padding-left:18px;font-size:15px;color:var(--muted)}
+.ph.now ul{color:inherit;opacity:.88}
+
+.for{display:grid;grid-template-columns:repeat(4,1fr);gap:28px}
+.for h3{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.for p{color:var(--muted);font-size:15.5px}
+
+.close{padding-block:clamp(90px,12vw,170px) clamp(40px,5vw,60px);text-align:left}
+.close blockquote{margin:0;font:700 clamp(40px,6.4vw,96px)/.98 var(--display);letter-spacing:-.045em;max-width:14ch}
+.close p{color:var(--muted);max-width:52ch;margin-top:26px;font-size:18px}
+.close .ctas{margin-top:34px}
+.word{font:800 clamp(90px,27vw,400px)/.78 var(--display);letter-spacing:-.07em;color:var(--brand);margin:clamp(60px,8vw,110px) 0 0 -.04em;user-select:none;white-space:nowrap}
+footer{border-top:1px solid var(--line);padding-block:26px 34px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-between;font-size:14px;color:var(--muted)}
+footer a{text-decoration:none}
+footer a:hover{color:var(--ink)}
+
+@media (max-width:960px){
+  .ws{grid-template-columns:1fr}
+  .head{grid-template-columns:1fr;align-items:start}
+  .pipe{grid-template-columns:1fr 1fr;row-gap:8px}
+  .phases{grid-template-columns:1fr}
+  .for{grid-template-columns:1fr 1fr}
+  .links{display:none}
+}
+@media (max-width:560px){
+  .pipe,.for{grid-template-columns:1fr}
+  .pipe li::before{margin-bottom:16px}
+  .nav .btn.quiet{display:none}
+  .sub-line{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Ndimi home"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>ndimi</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#languages">Languages</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+    <div class="end">
+      <a class="btn quiet" href="/accounts/login/">Sign in</a>
+      <a class="btn solid" href="/accounts/signup/">Start dubbing</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-title">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <span class="made"><b>Preview</b>Kiswahili dubbing is open now</span>
+      <h1 id="hero-title"><span class="into">Dub any video into</span><span class="lang" id="lang">Kiswahili</span><span class="lang"><span class="caret" aria-hidden="true"></span></span></h1>
+      <p class="sub">Upload a clip and Ndimi hears it, translates it and speaks it again in a Kenyan language, in a voice matched to the person on screen.</p>
+      <div class="ctas">
+        <a class="btn solid big" href="/accounts/signup/">Start dubbing free</a>
+        <a class="btn line big" href="#demo">See a dub in progress</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="stage" id="demo" aria-label="Dubbing workspace preview">
+    <div class="wrap">
+      <div class="window">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>kajiado-water-project.mp4 · English to Kiswahili</span></div>
+        <div class="ws">
+          <div class="player">
+            <div class="sun"></div><div class="hill"></div>
+            <div class="tog" role="group" aria-label="Audio track">
+              <button type="button" id="t-en" aria-pressed="false">Original</button>
+              <button type="button" id="t-sw" aria-pressed="true">Kiswahili dub</button>
+            </div>
+            <div class="sub-line" id="subline" aria-live="polite">Karibu kijijini kwetu.</div>
+            <div class="scrub"><b id="scrub"></b></div>
+          </div>
+          <div class="side">
+            <div class="panel">
+              <h3>Script</h3>
+              <div id="segs"></div>
+            </div>
+            <div class="panel">
+              <h3>Pipeline</h3>
+              <ol class="steps" id="steps"></ol>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">A preview of the dubbing workspace. Every line stays editable before the final voice is rendered.</p>
+    </div>
+  </section>
+
+  <section class="block" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="how-title">One upload. Five passes. A new voice.</h2>
+        <p>You pick the language. Ndimi runs the rest, and you can step in to fix a word or a line at any point before it speaks.</p>
+      </div>
+      <ol class="pipe" id="pipe">
+        <li><h3>Separate</h3><p>Voices are lifted off the music and ambient sound, so the soundtrack survives the dub.</p></li>
+        <li><h3>Transcribe</h3><p>Speech becomes timed text, split by speaker and sentence.</p></li>
+        <li><h3>Translate</h3><p>Each line is translated and sized to fit the seconds it has on screen.</p></li>
+        <li><h3>Re-voice</h3><p>A new voice reads each line, matched to the tone and pace of the original speaker.</p></li>
+        <li><h3>Sync</h3><p>The new speech is laid back over the picture and mixed with the original sound bed.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block" id="languages" aria-labelledby="lang-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="lang-title">Built from Kenyan languages outward.</h2>
+        <p>Kenya speaks more than forty languages, and most have no place in speech technology. We start where usable speech data exists and add more as communities help us record.</p>
+      </div>
+      <div class="langs" id="langs"></div>
+    </div>
+  </section>
+
+  <section class="block" id="roadmap" aria-labelledby="road-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="road-title">Dub first. Then speak live. Then teach.</h2>
+        <p>Each phase runs on the language data the one before it proves out. Every dubbed video is also a recording of the language, kept for the next generation.</p>
+      </div>
+      <div class="phases">
+        <article class="ph now">
+          <span class="when">Now</span>
+          <h3>Dub</h3>
+          <p>Upload a video or audio clip, choose a language, download it dubbed or subtitled.</p>
+          <ul><li>Voice-matched dubbing</li><li>Editable scripts and subtitles</li><li>No technical skill needed</li></ul>
+        </article>
+        <article class="ph">
+          <span class="when">Next</span>
+          <h3>Speak live</h3>
+          <p>Real-time spoken translation for rooms where two languages need to meet.</p>
+          <ul><li>Community meetings and county forums</li><li>Church services</li><li>Agricultural trainings</li></ul>
+        </article>
+        <article class="ph">
+          <span class="when">Later</span>
+          <h3>Learn</h3>
+          <p>Lessons built from real speech in real context, drawn from the platform's own library.</p>
+          <ul><li>For diaspora families</li><li>For children learning a grandparent's language</li></ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="for-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="for-title">Made for people who tell stories to their own.</h2>
+      </div>
+      <div class="for">
+        <div><h3>NGO teams</h3><p>Put health, farming and rights messages in the language people use at home.</p></div>
+        <div><h3>Church media</h3><p>Dub sermons and teaching videos for congregations across counties.</p></div>
+        <div><h3>Creators</h3><p>Reach new audiences without re-shooting or hiring a studio.</p></div>
+        <div><h3>Families</h3><p>Keep an elder's stories and pass them on in the language they were told in.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="close" aria-labelledby="close-title">
+    <div class="wrap">
+      <blockquote id="close-title">Filmed with, not about.</blockquote>
+      <p>Ndimi comes from a decade of Jeota Media documentary work in Kajiado and Meru, made alongside the communities whose languages it carries.</p>
+      <div class="ctas">
+        <a class="btn solid big" href="/accounts/signup/">Create your account</a>
+        <a class="btn line big" href="/accounts/login/">Sign in</a>
+      </div>
+      <div class="word" aria-hidden="true">ndimi</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Ndimi by Jeota Media Limited, Nairobi</span>
+    <span><a href="#how">How it works</a> &nbsp; <a href="#languages">Languages</a> &nbsp; <a href="#roadmap">Roadmap</a> &nbsp; <a href="/accounts/login/">Sign in</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+
+/* ---------- languages ---------- */
+const LANGS = [
+  {n:'Kiswahili', e:'Swahili', live:true},
+  {n:'Gĩkũyũ', e:'Kikuyu'},
+  {n:'Dholuo', e:'Luo'},
+  {n:'Kalenjin', e:'Kalenjin'},
+  {n:'Maa', e:'Maasai'},
+  {n:'Somali', e:'Somali'},
+  {n:'Oluluhya', e:'Luhya'}
+];
+$('langs').innerHTML = LANGS.map((l,i)=>{
+  const bars = [9,17,22,13,7].map(h=>`<i style="height:${Math.round(h*(l.live?1:.55+((i*37+h)%5)/12))}px"></i>`).join('');
+  return `<div class="l ${l.live?'live-l':''}"><span class="meters" aria-hidden="true">${bars}</span><span class="n">${l.n}</span><span class="e">${l.e}</span><span class="chip ${l.live?'live':''}">${l.live?'In preview':'In training'}</span></div>`;
+}).join('') + `<div class="l more"><span class="n">Kimeru, Kikamba, Ekegusii…</span><span class="e">Next, as speech data is collected with each community.</span></div>`;
+
+/* ---------- hero language cycle ---------- */
+const names = LANGS.map(l=>l.n);
+const el = $('lang');
+if(!reduce){
+  let i = 0, pos = names[0].length, del = false, hold = 30;
+  setInterval(()=>{
+    const w = names[i];
+    if(hold>0){hold--;return}
+    if(!del){ if(pos<w.length){pos++; el.textContent=w.slice(0,pos)} else {del=true; hold=30} }
+    else { if(pos>0){pos--; el.textContent=w.slice(0,pos)} else {del=false; i=(i+1)%names.length; hold=4} }
+  }, 65);
+}
+
+/* ---------- demo workspace ---------- */
+const SEGS = [
+  {t:'0:02', en:'Welcome to our village.', sw:'Karibu kijijini kwetu.'},
+  {t:'0:05', en:'Water here used to be a long walk away.', sw:'Zamani maji yalikuwa mbali sana hapa.'},
+  {t:'0:10', en:'Now the borehole serves every family.', sw:'Sasa kisima kinahudumia kila familia.'},
+  {t:'0:14', en:'Water is life.', sw:'Maji ni uhai.'}
+];
+const STEPS = ['Separating voices from music','Transcribing English speech','Translating into Kiswahili','Generating the Kiswahili voice','Syncing to the picture'];
+$('segs').innerHTML = SEGS.map((s,i)=>`<div class="seg" data-i="${i}"><time>${s.t}</time><span class="en">${s.en}</span><span class="sw">${s.sw}</span></div>`).join('');
+$('steps').innerHTML = STEPS.map(s=>`<li>${s}</li>`).join('');
+let track = 'sw', cur = 0;
+function showSeg(){
+  document.querySelectorAll('.seg').forEach((n,i)=>n.classList.toggle('on',i===cur));
+  $('subline').textContent = SEGS[cur][track];
+  $('scrub').style.width = ((cur+1)/SEGS.length*100)+'%';
+}
+function setTrack(t){
+  track = t;
+  $('t-en').setAttribute('aria-pressed', t==='en');
+  $('t-sw').setAttribute('aria-pressed', t==='sw');
+  showSeg();
+}
+$('t-en').onclick = ()=>setTrack('en');
+$('t-sw').onclick = ()=>setTrack('sw');
+let step = 3;
+function showSteps(){
+  document.querySelectorAll('#steps li').forEach((n,i)=>{n.className = i<step?'done':(i===step?'now':'')});
+}
+showSeg(); showSteps();
+if(!reduce){
+  setInterval(()=>{cur=(cur+1)%SEGS.length; showSeg()}, 3200);
+  setInterval(()=>{step = step>=STEPS.length ? 0 : step+1; showSteps()}, 1900);
+}
+
+/* ---------- pipeline reveal (line draws, text always visible) ---------- */
+const pipe = $('pipe');
+if('IntersectionObserver' in window){
+  new IntersectionObserver((es,o)=>{es.forEach(e=>{if(e.isIntersecting){pipe.classList.add('go');o.disconnect()}})},{threshold:.4}).observe(pipe);
+} else pipe.classList.add('go');
+
+/* ---------- voice field ---------- */
+const cv = $('field'), cx = cv.getContext('2d');
+let W=0,H=0,dpr=1,dots=[],mouse={x:-9999,y:-9999},t=0,col={};
+function readCols(){
+  const s = getComputedStyle(document.documentElement);
+  col = {dot:s.getPropertyValue('--dot').trim(), brand:s.getPropertyValue('--brand').trim(), accent:s.getPropertyValue('--accent').trim()};
+}
+function size(){
+  const r = cv.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = r.width; H = r.height;
+  cv.width = W*dpr; cv.height = H*dpr; cx.setTransform(dpr,0,0,dpr,0,0);
+  const gap = W < 600 ? 18 : 22;
+  dots = [];
+  for(let x = gap/2; x < W; x += gap) for(let y = gap/2; y < H; y += gap) dots.push({x,y,ox:0,oy:0});
+  readCols();
+}
+function env(x){ // speech-like envelope across the width, drifting over time
+  const u = x / W;
+  const a = Math.sin(u*9 + t*1.3)*.5 + Math.sin(u*23 - t*2.1)*.3 + Math.sin(u*4 + t*.6)*.4;
+  const syll = .35 + .65*Math.pow(Math.abs(Math.sin(u*11 - t*1.7)), .8);
+  return Math.max(.08, (a*.45+.6) * syll);
+}
+function draw(){
+  cx.clearRect(0,0,W,H);
+  const mid = H * (W < 700 ? .93 : .55);
+  const amp = H * (W < 700 ? .06 : .34);
+  const startX = W < 700 ? 0 : W*.5;
+  for(const d of dots){
+    const dx = d.x - mouse.x, dy = d.y - mouse.y, dist = Math.hypot(dx,dy), R = 130;
+    let push = 0;
+    if(dist < R){ push = (1 - dist/R); }
+    d.ox += ((dist<R ? dx/dist*push*18 : 0) - d.ox) * .15;
+    d.oy += ((dist<R ? dy/dist*push*18 : 0) - d.oy) * .15;
+    let inWave = false, strength = 0;
+    if(d.x > startX){
+      const fade = Math.min(1, (d.x - startX) / (W*.12));
+      const h = env(d.x) * amp * fade;
+      const off = Math.abs(d.y - mid);
+      if(off < h){ inWave = true; strength = 1 - off/Math.max(h,1) }
+    }
+    let r = 1.3, c = col.dot, a = .9;
+    if(inWave){ r = 1.6 + strength*1.6; c = col.brand; a = .35 + strength*.65 }
+    if(push > 0){ r += push*1.8; if(push > .45){ c = col.accent; a = 1 } }
+    cx.globalAlpha = a; cx.fillStyle = c;
+    cx.beginPath(); cx.arc(d.x + d.ox, d.y + d.oy, r, 0, 6.2832); cx.fill();
+  }
+  cx.globalAlpha = 1;
+}
+function loop(){ t += .012; draw(); if(!reduce) requestAnimationFrame(loop) }
+const hero = cv.parentElement;
+hero.addEventListener('pointermove', e=>{const r=cv.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top});
+hero.addEventListener('pointerleave', ()=>{mouse.x=mouse.y=-9999});
+addEventListener('resize', ()=>{size(); if(reduce) draw()});
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', readCols);
+new MutationObserver(readCols).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+size(); t = 2; loop();
+})();
+</script>
+
+</body>
+</html>

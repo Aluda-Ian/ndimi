@@ -1,0 +1,8 @@
+Django==5.2.17
+djangorestframework==3.18.1
+pymongo==4.18.1
+python-dotenv==1.2.3
+django-cors-headers==4.9.0
+cryptography>=44
+requests>=2.32
+numpy>=1.26

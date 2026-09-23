@@ -1,0 +1,63 @@
+**JEOTA MEDIA LIMITED**
+
+**CONCEPT NOTE**
+
+*A Kenyan-Language Dubbing, Live Translation **&** Learning Platform*
+
+| **Organization** | Jeota Media Limited — Nairobi, Kenya |
+| --- | --- |
+| **Tagline** | “Filmed with, not about” |
+| **Project** | Ndimi (“Languages”) — formerly Sauti Yetu |
+| **Prepared for** | Grant partners, research collaborators & impact investors |
+
+# **Problem Statement**
+
+Kenya has over 40 indigenous languages, and most have zero presence in digital speech or translation technology. English and Swahili dominate every platform — streaming, dubbing tools, translation apps, voice assistants — while languages like Kimeru, Kalenjin, Maasai, Dholuo, and dozens of smaller ones remain digitally invisible.
+
+This is not a hypothetical risk. Researchers and language bodies have flagged active language endangerment as globalization and English/Swahili dominance push younger generations away from mother tongues. Every year, fewer children grow up fluent in languages their grandparents spoke natively. Once a language loses its youngest speakers, it does not recover — it dies with the last generation that used it daily.
+
+At the same time, the infrastructure to address this is only now emerging in fragments. A handful of Kenyan universities recently built a large speech dataset (AfriVoices-KE) covering five languages — but no one has turned that research into something a real person can actually use. No app lets a mother in Meru dub a video for her children. No tool lets a diaspora Kenyan learn their grandmother's language. No platform lets a community elder's voice be preserved before it is lost.
+
+The gap, stated plainly: Kenyan languages are disappearing faster than they are being digitized, and the few research efforts underway produce datasets for engineers — not tools for families, communities, or content creators who need something simple, today.
+
+# **Concept**
+
+We are building a Kenyan-language-first platform that does three things in sequence — dub, translate live, and teach — with preservation as the throughline. Not a generic multilingual tool with Kenyan languages added on, but a platform built from Kenyan languages outward. Usage becomes the preservation mechanism, not a separate afterthought.
+
+**Phase 1 — Dubbing ****&**** Translation (MVP)**
+
+- Upload a video or audio clip and receive it dubbed or subtitled into a Kenyan language, starting with languages where usable speech data exists (Kikuyu, Kalenjin, Maasai, Dholuo, Somali, Swahili), extending to under-resourced languages such as Kimeru as data is collected.
+
+- Designed for anyone to use — an NGO team, a church media group, or an individual creator — without technical skill: upload, choose a language, download.
+
+- Built on an adapter-style architecture: one clean core pipeline, with each language and each processing stage (transcription, translation, voice synthesis) swappable and independently testable.
+
+**Phase 2 — Live Translation**
+
+- Real-time spoken translation for community meetings, church services, county forums, court proceedings, and agricultural extension trainings — anywhere a Kenyan-language speaker and an English or Swahili speaker need to understand each other live.
+
+- Sequenced after dubbing, since it depends on the same language data and translation core being proven first.
+
+**Phase 3 — Learn**
+
+- A section where diaspora Kenyans, curious learners, and younger generations can learn a local language using the platform's own voice and content library — real speech in real context, not textbook phrases.
+
+- Closes the loop on preservation: every dubbed piece of content becomes a potential language lesson, actively transmitting the language to the next generation rather than simply archiving it.
+
+# **Why Now — The Foundation We Build On**
+
+Jeota Media brings a decade of community-rooted documentary work across Kajiado and Meru, direct relationships with the communities whose languages this platform aims to preserve, and lived experience producing content “filmed with, not about” the people it represents. On the technical side, recent Kenyan academic research (AfriVoices-KE, 2026) has produced a substantial multilingual speech dataset across five Kenyan languages — the first foundation of its kind, and one this platform is positioned to build directly on through partnership with its research consortium.
+
+# **Expected Impact**
+
+- Direct: usable dubbing/translation tools for NGOs, media producers, and communities currently locked out of Kenyan-language content.
+
+- Structural: the first applied, public-facing product built on Kenya's emerging local-language speech research — turning a research dataset into daily-use infrastructure.
+
+- Generational: a learning layer that gives diaspora and younger Kenyans a living, contextual way to reconnect with languages at risk of disappearing within a generation.
+
+# **What We Are Seeking**
+
+We are seeking grant funding and/or impact investment to resource Phase 1 development: a working dubbing and translation MVP built in partnership with Kenyan language-data researchers, piloted on Jeota Media's existing documentary content and community relationships in Kajiado and Meru.
+
+*Jeota Media Limited  —  Nairobi, Kenya*

@@ -1,0 +1,47 @@
+{% extends "accounts/base.html" %}
+{% block title %}Your account{% endblock %}
+{% block card_class %}wide{% endblock %}
+{% block content %}
+<div class="topnav"><a href="{% url 'home' %}">← Back to {{ site_settings.site_name|default:"Ndimi" }}</a>{% if user.is_staff %}<a href="{% url 'admin:index' %}">Admin panel</a>{% endif %}</div>
+<h1>Your account</h1>
+<p class="lead">Signed in as <b>{{ user.get_username }}</b>{% if user.groups.all %} · {{ user.groups.all|join:", " }}{% endif %}</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% include "accounts/_fields.html" %}
+  <button class="btn" type="submit">Save details</button>
+</form>
+
+<section class="block">
+  <h2>Email {% if email_verified %}<span class="badge ok">Confirmed</span>{% else %}<span class="badge no">Not confirmed</span>{% endif %}</h2>
+  {% if email_verified %}
+    <p>{{ user.email }} is confirmed. We use it for password resets and security alerts.</p>
+  {% else %}
+    <p>Confirm {{ user.email|default:"your email" }} so you can reset your password{% if require_verification %} and use the dubbing tool{% endif %}.</p>
+    <form method="post" action="{% url 'resend_verification' %}">{% csrf_token %}<button class="btn ghost inline" type="submit">Send confirmation link</button></form>
+  {% endif %}
+</section>
+
+<section class="block">
+  <h2>Password</h2>
+  <p>Changing your password signs you out on your other devices.</p>
+  <a class="btn ghost inline" href="{% url 'password_change' %}" style="display:inline-block;text-decoration:none">Change password</a>
+</section>
+
+<section class="block">
+  <h2>Sessions</h2>
+  <p>Lost a phone or used a shared computer? Sign out everywhere except here.</p>
+  <div class="row">
+    <form method="post" action="{% url 'sign_out_other_devices' %}">{% csrf_token %}<button class="btn ghost inline" type="submit">Sign out other devices</button></form>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost inline" type="submit">Sign out</button></form>
+  </div>
+</section>
+
+{% if not user.is_superuser %}
+<section class="block">
+  <h2>Delete account</h2>
+  <p>Permanently deletes your account and your projects.</p>
+  <a href="{% url 'delete_account' %}" style="color:var(--danger);font-weight:600;font-size:14px">Delete my account…</a>
+</section>
+{% endif %}
+{% endblock %}
