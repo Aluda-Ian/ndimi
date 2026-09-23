@@ -122,8 +122,11 @@ if env('DATABASE_URL'):
     import dj_database_url
 
     DATABASES = {
-        'default': dj_database_url.parse(env('DATABASE_URL'), conn_max_age=60, ssl_require=True),
+        # conn_max_age=0: serverless functions shouldn't hold connections open.
+        'default': dj_database_url.parse(env('DATABASE_URL'), conn_max_age=0, ssl_require=True),
     }
+    # Neon's pooled URL runs through PgBouncer, which doesn't support server-side cursors.
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
     DATABASES = {
         'default': {
