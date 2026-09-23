@@ -20,16 +20,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 
+def env(name, default=''):
+    """Read an environment variable; blank values (common on hosting dashboards) count as unset."""
+    value = os.getenv(name, '').strip()
+    return value if value else default
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in env(name, default).split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-development-only-change-me')
+SECRET_KEY = env('DJANGO_SECRET_KEY', 'django-insecure-development-only-change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver')
+CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
 
 
 # Application definition
@@ -137,17 +148,17 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Starting value only; admins change it in System settings.
-MAX_VIDEO_UPLOAD_MB = int(os.getenv('MAX_VIDEO_UPLOAD_MB', '500'))
+MAX_VIDEO_UPLOAD_MB = int(env('MAX_VIDEO_UPLOAD_MB', '500'))
 
 # Email is sent with the SMTP settings admins enter in /admin/ (System management
 # > Email settings). Until that is turned on, emails print in the server console.
 EMAIL_BACKEND = 'system.email.DatabaseEmailBackend'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Ndimi <no-reply@localhost>')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', 'Ndimi <no-reply@localhost>')
 
 # Encrypts SMTP passwords and API keys saved in the database. Generate one with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # Keep it safe: if it changes, saved secrets must be entered again.
-FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
 
 # Authentication and access rights
 # Access is permission-based. Admins build groups in /admin/ > Groups and tick
@@ -177,9 +188,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # MongoDB stores application documents; Django's SQLite database stores
 # built-in admin, auth, and session data until a relational database is added.
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://127.0.0.1:27017')
-MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'sauti_yetu')
-CORS_ALLOWED_ORIGINS = [
-    origin for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5500').split(',')
-    if origin
-]
+MONGO_URI = env('MONGO_URI', 'mongodb://127.0.0.1:27017')
+MONGO_DB_NAME = env('MONGO_DB_NAME', 'sauti_yetu')
+CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:5500')
