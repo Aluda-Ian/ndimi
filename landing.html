@@ -486,7 +486,22 @@ if(!reduce){
   const cover = document.createElement('button'); cover.type = 'button'; cover.className = 'ytcover'; cover.setAttribute('aria-label', 'Play demo video');
   cover.innerHTML = '<span class="poster"></span><span class="play" aria-hidden="true"><svg class="pl" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="pa" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></span>';
   box.after(cover);
-  const setPoster = id => { cover.querySelector('.poster').style.backgroundImage = `url(https://i.ytimg.com/vi/${id}/maxresdefault.jpg), url(https://i.ytimg.com/vi/${id}/hqdefault.jpg)`; };
+  // YouTube serves a small grey placeholder (120px wide) when a size doesn't exist,
+  // so try each size in turn and use the first real one.
+  const posterCache = {};
+  const setPoster = id => {
+    const el = cover.querySelector('.poster');
+    const apply = url => { if(trk && ids[trk] === id) el.style.backgroundImage = url ? `url(${url})` : 'none'; };
+    if(id in posterCache) return apply(posterCache[id]);
+    const sizes = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault', '0'];
+    (function next(i){
+      if(i >= sizes.length){ posterCache[id] = ''; return apply(''); }
+      const url = `https://i.ytimg.com/vi/${id}/${sizes[i]}.jpg`, img = new Image();
+      img.onload = () => { if(img.naturalWidth > 120){ posterCache[id] = url; apply(url); } else next(i + 1); };
+      img.onerror = () => next(i + 1);
+      img.src = url;
+    })(0);
+  };
   $('barTitle').textContent = 'Ndimi demo · English to Kiswahili';
 
   // Only offer the tracks that exist
