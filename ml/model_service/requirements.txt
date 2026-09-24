@@ -1,0 +1,8 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+transformers>=4.46,<5
+torch>=2.2
+sentencepiece>=0.2   # translation models such as NLLB
+accelerate>=0.34

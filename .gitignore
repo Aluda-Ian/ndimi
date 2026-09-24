@@ -4,3 +4,9 @@ __pycache__/
 db.sqlite3
 .env
 staticfiles/
+# Datasets, reports and trained models (large and possibly under licence) never go in Git
+ml/out/
+ml/data/
+ml/models/
+ml/model_service/models.json
+*.ipynb_checkpoints/

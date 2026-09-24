@@ -1,0 +1,25 @@
+# Optional: tell data_check.py how your dataset is laid out when it can't work it out itself.
+# Copy to ml/mapping.yaml, fill in only what you need, then run:
+#   python ml/data_check.py /path/to/dataset --mapping ml/mapping.yaml
+#
+# The inventory report lists the columns it found in each metadata file, which helps here.
+
+# Every clip in this dataset is one language (Ndimi code: sw, ki, luo, kln, mas, so, luy, mer, kam, guz).
+# Leave out if the dataset has a language column or one folder per language.
+# language: luo
+
+columns:
+  # Column that holds the audio file name or path (relative to the metadata file or dataset folder)
+  # audio: file_name
+  # Column with the transcript in the spoken language
+  # text: transcription
+  # Language, dialect, speaker and gender columns
+  # language: lang
+  # dialect: sub_dialect
+  # speaker: speaker_id
+  # gender: gender
+  # Translations of the transcript (used later to train translation)
+  # translation_en: english
+  # translation_sw: swahili
+  # If the dataset already has train/dev/test splits, keep them
+  # split: split

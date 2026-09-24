@@ -1,0 +1,24 @@
+{
+  "_help": "Copy to models.json. Each entry points at a model folder or a Hugging Face repo. Only list what you have trained.",
+  "transcribe": {
+    "luo": {
+      "model": "/models/whisper-luo",
+      "language_token": "swahili",
+      "_note": "Folder saved by ml/train_asr.ipynb (or e.g. \"jeotamedia/whisper-small-luo\"). language_token: see the notebook's WHISPER_LANGUAGE."
+    }
+  },
+  "translate": {
+    "_example_en->luo": {
+      "model": "facebook/nllb-200-distilled-600M",
+      "src_code": "eng_Latn",
+      "tgt_code": "luo_Latn",
+      "_note": "Keys are \"source->target\" in Ndimi codes; \"*->luo\" matches any source. Remove the leading _ to switch an entry on."
+    }
+  },
+  "tts": {
+    "_example_luo": {
+      "model": "/models/tts-luo",
+      "_note": "Any Hugging Face text-to-speech model (e.g. a VITS/MMS voice fine-tuned on your recordings). Remove the leading _ to switch it on."
+    }
+  }
+}
