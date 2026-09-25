@@ -1,0 +1,25 @@
+# Column mapping for AfriVoices-KE (African Next Voices – Kenya) on Hugging Face.
+# Use it with:
+#   pip install pyyaml
+#   python ml/data_check.py "G:\Datasets\afrivoices-ke" --mapping ml/mapping.afrivoices-ke.yaml
+#
+# Column names come from the public dataset card (Sept 2026). If a column is renamed in a
+# later release, inventory.md lists the columns it actually found: fix the name here.
+#
+# The audio column is left out on purpose: data_check finds it on its own, whether the audio
+# is embedded in .parquet files (a column holding {bytes, path}) or referenced by file name.
+#
+# language is also left out: the dataset has one folder per language (kik, kln, luo, mas, som)
+# and a `language` column, both of which data_check already understands.
+
+columns:
+  # What the speaker actually said. (`actualSentence` is the prompt they were given for
+  # scripted speech, which can differ from what was recorded, so we don't train on it.)
+  text: transcript
+  speaker: recorder_uuid
+  dialect: sentenceDialect
+  duration: duration
+  language: language
+  # translatedText holds the translation of the sentence. Check a few rows in the
+  # inventory: if it is Kiswahili rather than English, change the key to translation_sw.
+  translation_en: translatedText
