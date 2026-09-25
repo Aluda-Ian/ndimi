@@ -12,7 +12,7 @@ ml/
   data_check.py          1. take stock of the dataset, write a clean manifest
   DATASETS.md            how to get, store and use our datasets (start here)
   mapping.example.yaml      (only if data_check can't work out the columns itself)
-  mapping.afrivoices-ke.yaml  column mapping for AfriVoices-KE
+  prepare_afrivoices.py  0. AfriVoices-KE only: join parquet audio + transcripts.csv into WAV + metadata.csv
   train_asr.ipynb        2. fine-tune speech-to-text for one language in Google Colab
   model_service/         3. serve trained models to Ndimi
     app.py, ndimi_models.py, models.example.json, Dockerfile, requirements.txt, test_service.py

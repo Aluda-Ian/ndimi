@@ -311,6 +311,51 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 .mpanel .meta{font-size:12.5px;color:var(--muted)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .mmsg.error,:root:not([data-theme="light"]) .malert.bad,:root:not([data-theme="light"]) .mpill.failed{background:#3A1714;color:#F97066}}
 :root[data-theme="dark"] .mmsg.error,:root[data-theme="dark"] .malert.bad,:root[data-theme="dark"] .mpill.failed{background:#3A1714;color:#F97066}
+/* ----- Project roadmap ----- */
+.rmsum{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.rmsum .big{font:700 34px/1 var(--display)}.rmsum .big small{font-size:16px;color:var(--muted);font-weight:600}
+.rmsum .now{font-size:14px;color:var(--muted)}.rmsum .now b{color:var(--ink)}
+.rmbar{grid-column:1/-1;height:10px;border-radius:999px;background:var(--canvas);overflow:hidden}
+.rmbar i{display:block;height:100%;background:var(--brand);border-radius:999px;transition:width .3s}
+.rmtools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.rmtools select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:14px}
+.rmm{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden}
+.rmm>summary{list-style:none;cursor:pointer;padding:14px 18px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center}
+.rmm>summary::-webkit-details-marker{display:none}
+.rmm>summary:hover{background:var(--canvas)}
+.rmm .code{font:700 13px/1 var(--display);background:var(--brand-soft);color:var(--ink);border-radius:8px;padding:6px 8px;min-width:30px;text-align:center}
+.rmm .mt{font:700 16px/1.25 var(--display);min-width:0}
+.rmm .mt small{display:block;font:500 12.5px/1.4 system-ui,sans-serif;color:var(--muted);margin-top:2px}
+.rmm .mr{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);white-space:nowrap}
+.rmm .mini{width:90px;height:6px;border-radius:999px;background:var(--canvas);overflow:hidden}.rmm .mini i{display:block;height:100%;background:var(--brand)}
+.rmm .goal{margin:0;padding:12px 18px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+.rmm .goal b{color:var(--ink)}
+.rmst{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--canvas)}
+.rmst.done{background:var(--brand-soft)}.rmst.active{background:var(--accent-soft)}.rmst.late{background:#FDE8E6;color:#8F1C13}
+.rmt{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;padding:12px 18px;border-top:1px solid var(--line);align-items:start}
+.rmt>input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--brand);cursor:pointer}
+.rmt>input:disabled{cursor:not-allowed}
+.rmt .tt{font-weight:600;font-size:15px;line-height:1.35}
+.rmt.done .tt{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.rmt .tm{display:flex;gap:6px 10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:4px;align-items:center}
+.rmt .chip{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--canvas);color:var(--ink)}
+.rmt .late{color:#B42318;font-weight:600}
+.rmt .acts{display:flex;gap:4px}
+.rmt .acts button{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--brand);padding:3px 6px;border-radius:6px}
+.rmt .acts button:hover{background:var(--brand-soft)}
+.rmt .more{grid-column:2/-1;font-size:14px;display:none}
+.rmt.open .more{display:block}
+.rmt .more p{margin:6px 0;white-space:pre-wrap}
+.rmt .more .ref{font-size:13px;color:var(--muted)}
+.rmt pre{position:relative;margin:8px 0;padding:10px 70px 10px 12px;background:var(--canvas);border:1px solid var(--line);border-radius:10px;font:12.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+.rmt pre button{position:absolute;top:6px;right:6px;font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.rmt textarea{width:100%;min-height:70px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--canvas);font-size:14px;margin-top:4px}
+.rmt .nrow{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:13px;color:var(--muted)}
+.rmempty{padding:14px 18px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .rmst.late{background:#3A1714;color:#F97066}:root:not([data-theme="light"]) .rmt .late{color:#F97066}}
+:root[data-theme="dark"] .rmst.late{background:#3A1714;color:#F97066}:root[data-theme="dark"] .rmt .late{color:#F97066}
+@media (max-width:640px){.rmm>summary{grid-template-columns:auto minmax(0,1fr)}.rmm .mr{grid-column:1/-1}.rmsum{grid-template-columns:1fr}}
+@media print{.side,.mnav,.rmtools,.mhead .row,.rmt .acts,.rmt>input{display:none!important}.manage{display:block}.rmm{break-inside:avoid-page}.rmt .more{display:block}}
 @media (max-width:980px){.manage{grid-template-columns:1fr}.mnav{position:static;flex-direction:row;flex-wrap:wrap}.mnav h4{display:none}}
 </style>
 </head>
@@ -882,7 +927,7 @@ async function openManage(key){
   renderMNav();show('vManage');mGo(key||'overview');
 }
 function renderMNav(){
-  const groups={};M.sections.forEach(s=>(groups[s.group]=groups[s.group]||[]).push(s));
+  const groups={};M.sections.filter(s=>!s.hidden).forEach(s=>(groups[s.group]=groups[s.group]||[]).push(s));
   let h='<button data-k="overview">Overview</button>';
   Object.entries(groups).forEach(([g,list])=>{h+=`<h4>${esc(g)}</h4>`+list.map(s=>`<button data-k="${esc(s.key)}">${esc(s.label)}</button>`).join('');});
   h+='<h4>More</h4><a href="/admin/?classic=1" target="_blank" rel="noopener">Classic admin (advanced) ↗</a>';
@@ -895,7 +940,7 @@ async function mGo(key,opts={}){
   if(key==='overview'){renderOverview();return;}
   body.innerHTML='<div class="emptyscript">Loading…</div>';
   try{const q=opts.q?('?q='+encodeURIComponent(opts.q)):'';const d=await api(`/api/manage/${key}/${q}`);
-    if(d.kind==='collection')renderList(d,opts.q||'');else renderForm(d);}
+    if(d.kind==='roadmap')renderRoadmap(d);else if(d.kind==='collection')renderList(d,opts.q||'');else renderForm(d);}
   catch(e){body.innerHTML=`<div class="mmsg error">${esc(e.message)}</div>`;}
 }
 function renderOverview(){
@@ -908,12 +953,86 @@ function renderOverview(){
   if(d){h+=card('Dubs in progress',d.active,d.running+' running now','','dubs')+card('Waiting for review',d.review,'Scripts to approve',d.review?'warn':'','dubs')+card('Finished this week',d.done_week,'Completed dubs','good','dubs')+card('Failed this week',d.failed_week,'Open to see why',d.failed_week?'bad':'','dubs');}
   if(u)h+=card('Users',u.total,'+'+u.new_week+' this week · '+u.active_week+' active','','users');
   if(it)h+=card('Integrations on',it.enabled+'<span style="font-size:16px;color:var(--muted)"> / '+it.total+'</span>','API keys and services','','integrations');
+  if(o.roadmap&&o.roadmap.total)h+=card('Project roadmap',o.roadmap.percent+'%',o.roadmap.done+' of '+o.roadmap.total+' tasks'+(o.roadmap.current?' · Now: '+esc(o.roadmap.current):''),o.roadmap.percent===100?'good':'','roadmap');
   if(o.email)h+=card('Email',o.email.enabled?'On':'Off',esc(o.email.last_test||'Not tested yet'),o.email.enabled?'good':'warn','email');
   h+='</div>';
   if(d&&d.recent.length){h+='<div class="mpanel"><h3>Latest dubs</h3>'+d.recent.map(j=>`<div class="li" data-job="${esc(j.id)}"><div><b>${esc(j.name)}</b><div class="meta">${esc(j.owner)} · ${esc(langNameOf(j.target_language))} · ${new Date(j.created_at).toLocaleString()}</div></div><span class="mpill ${esc(j.status)}">${esc(j.status_label)}${j.status==='running'?' '+j.progress+'%':''}</span></div>`).join('')+'</div>';}
   $('mbody').innerHTML=h;
   $('mbody').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(M.sections.some(s=>s.key===b.dataset.go))mGo(b.dataset.go);});
   $('mbody').querySelectorAll('[data-job]').forEach(r=>r.onclick=()=>mGo('dubs',{open:r.dataset.job}).then(()=>mOpen('dubs',r.dataset.job)));
+}
+/* ----- Project roadmap: milestones with tasks you tick off ----- */
+const RM={filter:'all',area:'',open:new Set(),openTasks:new Set(),data:null};
+function rmDate(v){return v?new Date(v+(v.length===10?'T00:00':'')).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';}
+function renderRoadmap(d){
+  const first=!RM.data;RM.data=d;const s=d.summary;
+  if(first){d.milestones.forEach(m=>{if(m.status!=='done')RM.open.add(m.id);});}
+  const stLabel={done:'Done',active:'In progress',late:'Past target date',todo:'Not started'};
+  let h=`<div class="mhead"><h2>${esc(d.title)}</h2><div class="row">`;
+  if(d.can_add)h+='<button class="btn sm" id="rmAdd">Add task</button>';
+  if(d.can_edit_milestones)h+='<button class="btn ghost sm" id="rmMs">Milestones</button>';
+  h+='<button class="btn ghost sm" id="rmPrint">Print</button></div></div><div class="msgs"></div>';
+  h+=`<div class="rmsum"><div><div class="big">${s.percent}% <small>${s.done} of ${s.total} tasks done</small></div>
+    <div class="now">${d.current?`Now working on <b>${esc(d.current.code)} · ${esc(d.current.title)}</b> · `:''}${s.milestones_done} of ${s.milestones} milestones complete</div></div>
+    <div class="rmbar" role="progressbar" aria-valuenow="${s.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Roadmap progress"><i style="width:${s.percent}%"></i></div></div>`;
+  h+=`<div class="rmtools"><select id="rmFilter" aria-label="Show"><option value="all">All tasks</option><option value="todo">To do</option><option value="done">Done</option></select>
+    <select id="rmArea" aria-label="Area"><option value="">All areas</option>${d.areas.map(a=>`<option value="${esc(a.value)}">${esc(a.label)}</option>`).join('')}</select>
+    <button class="btn ghost sm" id="rmExpand">Expand all</button><button class="btn ghost sm" id="rmCollapse">Collapse all</button></div>`;
+  d.milestones.forEach(m=>{
+    const pct=m.total?Math.round(100*m.done/m.total):0;
+    const tasks=m.tasks.filter(t=>(RM.filter==='all'||(RM.filter==='done')===t.done)&&(!RM.area||t.area===RM.area));
+    h+=`<details class="rmm" data-m="${m.id}" ${RM.open.has(m.id)?'open':''}><summary>
+      <span class="code">${esc(m.code)}</span>
+      <span class="mt">${esc(m.title)}<small>${esc(m.phase_label)}${m.target_date?' · Target '+esc(rmDate(m.target_date)):''}${m.completed_at?' · Completed '+esc(rmDate(m.completed_at.slice(0,10))):''}</small></span>
+      <span class="mr"><span class="rmst ${m.status}">${stLabel[m.status]}</span>${m.done}/${m.total}<span class="mini"><i style="width:${pct}%"></i></span></span></summary>`;
+    if(m.goal)h+=`<p class="goal"><b>Done when:</b> ${esc(m.goal)}</p>`;
+    if(!tasks.length)h+=`<div class="rmempty">${m.total?'No tasks match the filter.':'No tasks yet.'}</div>`;
+    tasks.forEach(t=>{
+      const meta=[`<span class="chip">${esc(t.area_label)}</span>`];
+      if(t.owner)meta.push('Owner: '+esc(t.owner));
+      if(t.due_date)meta.push(`<span class="${t.overdue?'late':''}">Due ${esc(rmDate(t.due_date))}</span>`);
+      if(t.done)meta.push('Done'+(t.done_by?' by '+esc(t.done_by):'')+(t.done_at?' · '+esc(new Date(t.done_at).toLocaleDateString()):''));
+      if(t.notes&&!RM.openTasks.has(t.id))meta.push('Has notes');
+      h+=`<div class="rmt ${t.done?'done':''} ${RM.openTasks.has(t.id)?'open':''}" data-t="${t.id}">
+        <input type="checkbox" ${t.done?'checked':''} ${d.can_change?'':'disabled'} aria-label="Mark “${esc(t.title)}” as done">
+        <div><div class="tt">${esc(t.title)}</div><div class="tm">${meta.join(' · ')}</div></div>
+        <div class="acts"><button data-a="more" aria-expanded="${RM.openTasks.has(t.id)}">${RM.openTasks.has(t.id)?'Less':'Details'}</button>${d.can_change?'<button data-a="edit">Edit</button>':''}</div>
+        <div class="more">${t.details?`<p>${esc(t.details)}</p>`:''}${t.reference?`<p class="ref">Where: ${esc(t.reference)}</p>`:''}
+          ${t.command?`<pre><button type="button" data-a="copy">Copy</button>${esc(t.command)}</pre>`:''}
+          <label class="ref" for="rmn${t.id}">Notes</label>
+          <textarea id="rmn${t.id}" ${d.can_change?'':'readonly'} placeholder="Results, decisions, links…">${esc(t.notes)}</textarea>
+          ${d.can_change?'<div class="nrow"><button class="btn ghost sm" data-a="notes">Save notes</button><span class="saved"></span></div>':''}</div></div>`;});
+    h+='</details>';});
+  $('mbody').innerHTML=h;
+  $('rmFilter').value=RM.filter;$('rmArea').value=RM.area;
+  $('rmFilter').onchange=e=>{RM.filter=e.target.value;renderRoadmap(RM.data);};
+  $('rmArea').onchange=e=>{RM.area=e.target.value;renderRoadmap(RM.data);};
+  $('rmExpand').onclick=()=>{RM.data.milestones.forEach(m=>RM.open.add(m.id));renderRoadmap(RM.data);};
+  $('rmCollapse').onclick=()=>{RM.open.clear();RM.openTasks.clear();renderRoadmap(RM.data);};
+  $('rmPrint').onclick=()=>{const keep=new Set(RM.open);RM.data.milestones.forEach(m=>RM.open.add(m.id));renderRoadmap(RM.data);window.print();RM.open=keep;renderRoadmap(RM.data);};
+  if($('rmAdd'))$('rmAdd').onclick=()=>{M.returnTo='roadmap';mOpen('roadmap-tasks',null);};
+  if($('rmMs'))$('rmMs').onclick=()=>mGo('milestones');
+  $('mbody').querySelectorAll('details.rmm').forEach(det=>det.addEventListener('toggle',()=>{const id=+det.dataset.m;if(det.open)RM.open.add(id);else RM.open.delete(id);}));
+  $('mbody').querySelectorAll('.rmt').forEach(row=>{
+    const id=+row.dataset.t;
+    row.querySelector('input[type=checkbox]').onchange=e=>rmSave(id,{done:e.target.checked},e.target);
+    row.querySelectorAll('[data-a]').forEach(b=>b.onclick=async ev=>{ev.preventDefault();const a=b.dataset.a;
+      if(a==='more'){if(RM.openTasks.has(id))RM.openTasks.delete(id);else RM.openTasks.add(id);row.classList.toggle('open');b.textContent=row.classList.contains('open')?'Less':'Details';b.setAttribute('aria-expanded',row.classList.contains('open'));}
+      else if(a==='edit'){M.returnTo='roadmap';mOpen('roadmap-tasks',String(id));}
+      else if(a==='copy'){const txt=b.parentElement.textContent.replace(/^Copy/,'');try{await navigator.clipboard.writeText(txt);b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1500);}catch(e){toast('Copy failed. Select the text instead.');}}
+      else if(a==='notes'){await rmSave(id,{notes:$('rmn'+id).value},b);}});
+  });
+}
+async function rmSave(id,body,el){
+  if(el)el.disabled=true;
+  try{const d=await api(`/api/manage/roadmap/tasks/${id}/`,{method:'POST',json:body});
+    if(body.notes!==undefined)RM.openTasks.add(id);
+    const y=window.scrollY;renderRoadmap(d);window.scrollTo(0,y);
+    if(body.done!==undefined){const m=d.milestones.find(m=>m.tasks.some(t=>t.id===id));
+      if(body.done&&m&&m.status==='done')mMsgs([{level:'success',text:`${m.code} · ${m.title} is complete.`}]);}
+    if(body.notes!==undefined){const s=$('mbody').querySelector(`.rmt[data-t="${id}"] .saved`);if(s)s.textContent='Saved';}
+    if(M.overview&&M.overview.roadmap){const r=M.overview.roadmap;r.done=d.summary.done;r.total=d.summary.total;r.percent=d.summary.percent;r.current=d.current?d.current.code+' · '+d.current.title:'';}}
+  catch(e){if(el){el.disabled=false;if(el.type==='checkbox')el.checked=!el.checked;}mMsgs([{level:'error',text:e.message}]);}
 }
 function cellHtml(v){if(v===true)return '<span class="yes">Yes</span>';if(v===false)return '<span class="no">No</span>';
   if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v))return esc(new Date(v).toLocaleString());return esc(v===''?'—':v);}
@@ -957,7 +1076,7 @@ function fieldHtml(f,edit){
 function renderForm(d){
   M.form=d;const edit=d.can_change!==false;
   let h=`<div class="mhead"><h2>${esc(d.title)}</h2><div class="row">`;
-  if(d.kind==='collection')h+=`<button class="btn ghost sm" id="mback">← Back</button>`;
+  if(d.kind==='collection')h+=`<button class="btn ghost sm" id="mback">← ${M.returnTo==='roadmap'?'Roadmap':'Back'}</button>`;
   (d.actions||[]).forEach(a=>{h+=`<button class="btn ghost sm" data-act="${esc(a.name)}">${esc(a.label)}</button>`;});
   if(d.extras&&d.extras.open_in_studio&&realMode())h+='<button class="btn ghost sm" id="mstudio">Open in studio</button>';
   h+='</div></div><div class="msgs"></div>';
@@ -976,7 +1095,7 @@ function renderForm(d){
   $('mbody').querySelectorAll('.mlist').forEach(ml=>{const upd=()=>{ml.querySelector('.cnt').textContent=ml.querySelectorAll('.opts input:checked').length+' selected';};upd();
     ml.querySelector('.opts').addEventListener('change',upd);
     ml.querySelector('.q').addEventListener('input',e=>{const t=e.target.value.toLowerCase();ml.querySelectorAll('.opts label').forEach(l=>l.style.display=l.dataset.t.includes(t)?'':'none');});});
-  if($('mback'))$('mback').onclick=()=>mGo(d.key);
+  if($('mback'))$('mback').onclick=()=>{const to=M.returnTo;M.returnTo=null;mGo(to||d.key);};
   if($('msave'))$('msave').onclick=()=>mSave(d);
   if($('mtest'))$('mtest').onclick=async()=>{if(await mSave(d,true)){try{const r=await api('/api/manage/email/test/',{method:'POST',json:{}});renderForm(r);mMsgs(r.messages);}catch(e){mMsgs([{level:'error',text:e.message}]);}}};
   if($('mdel'))$('mdel').onclick=async()=>{if(!confirm('Delete “'+d.title+'”? This can\'t be undone.'))return;

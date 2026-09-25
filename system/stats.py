@@ -51,6 +51,17 @@ def dashboard_stats(user):
 
             site = SystemSettings.load()
             data['site'] = {'maintenance': site.maintenance_mode, 'signup': site.allow_signup}
+        if user.has_perm('system.view_roadmaptask'):
+            from system.models import Milestone, RoadmapTask
+
+            tasks = RoadmapTask.objects.all()
+            total = tasks.count()
+            done = tasks.filter(done=True).count()
+            current = Milestone.objects.filter(tasks__done=False).distinct().order_by('order', 'code').first()
+            data['roadmap'] = {
+                'total': total, 'done': done, 'percent': round(100 * done / total) if total else 0,
+                'current': f'{current.code} · {current.title}' if current else '',
+            }
     except DatabaseError:
         pass
     return data

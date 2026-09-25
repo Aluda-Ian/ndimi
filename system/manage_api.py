@@ -24,6 +24,9 @@ from .stats import dashboard_stats
 
 # key, label, group, model path, kind
 RESOURCES = [
+    ('roadmap', 'Project roadmap', 'Project', 'system.RoadmapTask', 'roadmap'),
+    ('milestones', 'Milestones', 'Project', 'system.Milestone', 'collection'),
+    ('roadmap-tasks', 'Roadmap tasks', 'Project', 'system.RoadmapTask', 'collection'),
     ('email', 'Email (SMTP)', 'Configuration', 'system.EmailSettings', 'singleton'),
     ('integrations', 'Integrations & API keys', 'Configuration', 'system.Integration', 'collection'),
     ('dubbing', 'Dubbing engine', 'Configuration', 'dubbing.DubbingSettings', 'singleton'),
@@ -35,6 +38,8 @@ RESOURCES = [
     ('activity', 'Activity log', 'Operations', 'admin.LogEntry', 'collection'),
 ]
 PAGE_SIZE = 100
+# Reached from the roadmap page's buttons rather than the side menu.
+HIDDEN_IN_NAV = {'milestones', 'roadmap-tasks'}
 
 
 def _model(path):
@@ -279,7 +284,8 @@ def index(request):
         model_admin = admin.site._registry.get(model)
         if model_admin and model_admin.has_view_or_change_permission(request):
             sections.append({'key': key, 'label': label, 'group': group, 'kind': kind,
-                             'can_add': kind == 'collection' and model_admin.has_add_permission(request)})
+                             'can_add': kind == 'collection' and model_admin.has_add_permission(request),
+                             'hidden': key in HIDDEN_IN_NAV})
     stats = dashboard_stats(request.user)
     if 'dubs' in stats:
         stats['dubs']['recent'] = [
@@ -297,6 +303,11 @@ def section(request, key):
     model_admin = res['admin']
     if not model_admin.has_view_or_change_permission(request):
         return JsonResponse({'error': "You don't have access to this section."}, status=403)
+
+    if res['kind'] == 'roadmap':
+        if request.method != 'GET':
+            return JsonResponse({'error': 'Method not allowed.'}, status=405)
+        return JsonResponse(_roadmap_payload(request, model_admin))
 
     if res['kind'] == 'singleton':
         obj = res['model'].load()
@@ -447,3 +458,82 @@ def set_password(request, pk):
         from django.contrib.auth import update_session_auth_hash
         update_session_auth_hash(request, obj)
     return JsonResponse({'messages': [{'level': 'success', 'text': f'Password changed for {obj}. Their other sessions were signed out.'}]})
+
+
+# ---------- project roadmap ----------
+
+def _roadmap_payload(request, task_admin):
+    from .models import Milestone, RoadmapTask
+
+    milestone_admin = admin.site._registry.get(Milestone)
+    today = timezone.localdate()
+    milestones, total, done, current = [], 0, 0, None
+    for m in Milestone.objects.prefetch_related('tasks__done_by'):
+        tasks = sorted(m.tasks.all(), key=lambda t: (t.order, t.pk))
+        m_done = sum(t.done for t in tasks)
+        total, done = total + len(tasks), done + m_done
+        if tasks and m_done == len(tasks):
+            status = 'done'
+        elif m.target_date and m.target_date < today:
+            status = 'late'
+        elif m_done:
+            status = 'active'
+        else:
+            status = 'todo'
+        if current is None and status != 'done' and tasks:
+            current = {'id': m.pk, 'code': m.code, 'title': m.title}
+        milestones.append({
+            'id': m.pk, 'code': m.code, 'title': m.title, 'phase': m.phase, 'phase_label': m.get_phase_display(),
+            'goal': m.goal, 'target_date': _plain(m.target_date), 'completed_at': _plain(m.completed_at),
+            'status': status, 'done': m_done, 'total': len(tasks),
+            'tasks': [{
+                'id': t.pk, 'title': t.title, 'area': t.area, 'area_label': t.get_area_display(),
+                'details': t.details, 'reference': t.reference, 'command': t.command, 'owner': t.owner,
+                'due_date': _plain(t.due_date), 'overdue': bool(t.due_date and not t.done and t.due_date < today),
+                'done': t.done, 'done_at': _plain(t.done_at),
+                'done_by': (t.done_by.get_full_name() or t.done_by.get_username()) if t.done_by else '',
+                'notes': t.notes,
+            } for t in tasks],
+        })
+    return {
+        'kind': 'roadmap', 'key': 'roadmap', 'title': 'Project roadmap',
+        'summary': {'total': total, 'done': done, 'percent': round(100 * done / total) if total else 0,
+                    'milestones': len(milestones), 'milestones_done': sum(m['status'] == 'done' for m in milestones)},
+        'current': current,
+        'milestones': milestones,
+        'areas': [{'value': v, 'label': str(l)} for v, l in RoadmapTask.AREA_CHOICES],
+        'can_change': task_admin.has_change_permission(request),
+        'can_add': task_admin.has_add_permission(request),
+        'can_edit_milestones': bool(milestone_admin and milestone_admin.has_view_or_change_permission(request)),
+    }
+
+
+@staff_api
+def roadmap_task(request, pk):
+    """Tick or untick a task (and optionally save its notes) from the roadmap page."""
+    from .models import RoadmapTask
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+    task_admin = admin.site._registry.get(RoadmapTask)
+    task = RoadmapTask.objects.select_related('milestone').filter(pk=pk).first()
+    if task is None:
+        raise Http404('Task not found.')
+    if not task_admin.has_change_permission(request, task):
+        return JsonResponse({'error': "You can't change roadmap tasks."}, status=403)
+    body = _body(request)
+    if body is None:
+        return JsonResponse({'error': 'Send JSON.'}, status=400)
+
+    changed = []
+    if 'done' in body and bool(body['done']) != task.done:
+        task.set_done(bool(body['done']), request.user)
+        changed.append('Marked done' if task.done else 'Reopened')
+    if 'notes' in body and str(body['notes'] or '') != task.notes:
+        task.notes = str(body['notes'] or '')[:20000]
+        changed.append('Updated notes')
+    if changed:
+        task.save()
+        task.milestone.refresh_completion()
+        task_admin.log_change(request, task, ', '.join(changed))
+    return JsonResponse(_roadmap_payload(request, task_admin))

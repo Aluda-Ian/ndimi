@@ -205,3 +205,90 @@ class Integration(models.Model):
             'secrets': integration.extra_secrets,
             'config': integration.config or {},
         }
+
+
+# ---------- project roadmap (Settings → Project roadmap) ----------
+
+class Milestone(models.Model):
+    """A stage of the Ndimi project. Its tasks are ticked off in Settings → Project roadmap."""
+
+    PHASE_CHOICES = [
+        ('foundation', 'Foundations'),
+        ('phase1', 'Phase 1 · Dubbing & translation'),
+        ('phase2', 'Phase 2 · Live translation'),
+        ('phase3', 'Phase 3 · Learn'),
+        ('ongoing', 'Ongoing'),
+    ]
+
+    code = models.CharField(max_length=10, unique=True, help_text='Short reference, e.g. M3.')
+    title = models.CharField(max_length=120)
+    phase = models.CharField(max_length=12, choices=PHASE_CHOICES, default='phase1')
+    goal = models.TextField(blank=True, help_text='What "done" means for this milestone.')
+    order = models.PositiveIntegerField(default=0, help_text='Position in the roadmap (lowest first).')
+    target_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True, editable=False,
+                                        help_text='Set automatically when the last task is ticked.')
+
+    class Meta:
+        ordering = ['order', 'code']
+
+    def __str__(self):
+        return f'{self.code} · {self.title}'
+
+    def refresh_completion(self, save=True):
+        """Record when every task got done (or clear it when one is reopened)."""
+        from django.utils import timezone
+
+        tasks = list(self.tasks.all())
+        finished = bool(tasks) and all(t.done for t in tasks)
+        if finished and not self.completed_at:
+            self.completed_at = max((t.done_at for t in tasks if t.done_at), default=None) or timezone.now()
+        elif not finished:
+            self.completed_at = None
+        if save:
+            Milestone.objects.filter(pk=self.pk).update(completed_at=self.completed_at)
+
+
+class RoadmapTask(models.Model):
+    AREA_CHOICES = [
+        ('platform', 'Platform'),
+        ('data', 'Data'),
+        ('models', 'Models'),
+        ('operations', 'Operations'),
+        ('legal', 'Legal & consent'),
+        ('community', 'Community'),
+        ('business', 'Business'),
+    ]
+
+    milestone = models.ForeignKey(Milestone, on_delete=models.CASCADE, related_name='tasks')
+    order = models.PositiveIntegerField(default=0, help_text='Position within the milestone.')
+    title = models.CharField(max_length=200)
+    area = models.CharField(max_length=12, choices=AREA_CHOICES, default='platform')
+    details = models.TextField(blank=True, help_text='How to do it, and how to know it worked.')
+    reference = models.CharField(max_length=200, blank=True,
+                                 help_text='Where to do it or read more, e.g. "ml/DATASETS.md §5" or "Settings → Email".')
+    command = models.TextField(blank=True, help_text='Command to run, if any. Shown with a copy button.')
+    owner = models.CharField(max_length=80, blank=True, help_text='Who is responsible.')
+    due_date = models.DateField(null=True, blank=True)
+    done = models.BooleanField(default=False)
+    done_at = models.DateTimeField(null=True, blank=True, editable=False)
+    done_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='+', editable=False)
+    notes = models.TextField(blank=True, help_text='Results, decisions, links. Kept with the task.')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['milestone__order', 'order', 'pk']
+        verbose_name = 'roadmap task'
+
+    def __str__(self):
+        return self.title
+
+    def set_done(self, done, user=None):
+        """Tick or untick; records who and when."""
+        from django.utils import timezone
+
+        if done and not self.done:
+            self.done, self.done_at, self.done_by = True, timezone.now(), user
+        elif not done and self.done:
+            self.done, self.done_at, self.done_by = False, None, None

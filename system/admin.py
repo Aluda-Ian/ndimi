@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import crypto
-from .models import EmailSettings, Integration, SystemSettings
+from .models import EmailSettings, Integration, Milestone, RoadmapTask, SystemSettings
 
 
 class SingletonAdmin(admin.ModelAdmin):
@@ -248,3 +248,55 @@ class ActivityLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# ---------- project roadmap ----------
+
+@admin.register(Milestone)
+class MilestoneAdmin(admin.ModelAdmin):
+    list_display = ('code', 'title', 'phase', 'progress', 'target_date', 'completed_at')
+    list_filter = ('phase',)
+    search_fields = ('code', 'title', 'goal')
+    readonly_fields = ('completed_at',)
+    fieldsets = (
+        (None, {'fields': ('code', 'title', 'phase', 'goal')}),
+        ('Planning', {'fields': ('order', 'target_date', 'completed_at')}),
+    )
+
+    @admin.display(description='Progress')
+    def progress(self, obj):
+        total = obj.tasks.count()
+        return f'{obj.tasks.filter(done=True).count()} / {total}' if total else 'No tasks'
+
+
+@admin.register(RoadmapTask)
+class RoadmapTaskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'milestone', 'area', 'owner', 'due_date', 'done')
+    list_filter = ('done', 'area', 'milestone')
+    search_fields = ('title', 'details', 'notes', 'owner', 'milestone__code', 'milestone__title')
+    list_select_related = ('milestone',)
+    readonly_fields = ('done_at', 'done_by', 'updated_at')
+    fieldsets = (
+        (None, {'fields': ('milestone', 'title', 'area', 'done')}),
+        ('How to do it', {'fields': ('details', 'reference', 'command')}),
+        ('Planning', {'fields': ('owner', 'due_date', 'order')}),
+        ('Notes & history', {'fields': ('notes', 'done_at', 'done_by', 'updated_at')}),
+    )
+
+    def save_model(self, request, obj, form, change):
+        # The form has already set obj.done; record who ticked it and when.
+        was_done = bool(change and RoadmapTask.objects.filter(pk=obj.pk, done=True).exists())
+        if obj.done != was_done:
+            wanted, obj.done = obj.done, was_done
+            obj.set_done(wanted, request.user)
+        super().save_model(request, obj, form, change)
+        obj.milestone.refresh_completion()
+        if change and 'milestone' in form.changed_data and form.initial.get('milestone'):
+            old = Milestone.objects.filter(pk=form.initial['milestone']).first()
+            if old:
+                old.refresh_completion()
+
+    def delete_model(self, request, obj):
+        milestone = obj.milestone
+        super().delete_model(request, obj)
+        milestone.refresh_completion()

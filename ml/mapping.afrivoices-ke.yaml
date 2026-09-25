@@ -1,3 +1,7 @@
+# NOT NEEDED for the Anv-ke/<language> repos we use: run ml/prepare_afrivoices.py instead
+# (see ml/DATASETS.md). Kept only for the combined MCAA1-MSU/anv_data_ke repo, whose layout
+# we haven't checked.
+#
 # Column mapping for AfriVoices-KE (African Next Voices – Kenya) on Hugging Face.
 # Use it with:
 #   pip install pyyaml
