@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ndimi · Integration Docs</title>
+<meta name="description" content="Step-by-step setup guides for every API and integration used by Ndimi — ElevenLabs, OpenAI, Google Cloud, Cloudflare R2, AWS S3, M-Pesa Daraja, Stripe, Africa's Talking, MongoDB, and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== Tokens ===== */
+:root {
+  --canvas: #EDEFEA; --surface: #FFFFFF; --ink: #15171C; --muted: #5E636B; --line: #D9DCD4;
+  --brand: #0B6E66; --brand-soft: #D7ECE8; --brand-ink: #FFFFFF;
+  --accent: #E9A21B; --accent-soft: #FBEFD2;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --canvas: #101312; --surface: #181C1B; --ink: #ECEEEA; --muted: #8A9090; --line: #2A302E;
+  --brand: #3FB7A9; --brand-soft: #173532; --brand-ink: #0C1211;
+  --accent: #F2B745; --accent-soft: #3A2E14;
+}}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--canvas); color: var(--ink);
+  font: 400 16px/1.6 var(--body); -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img, svg { max-width: 100%; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ===== Layout ===== */
+.wrapper { max-width: 1260px; margin: 0 auto; padding: 0 clamp(18px, 4vw, 48px); }
+
+/* ===== Hero ===== */
+.hero {
+  background: linear-gradient(135deg, #0B6E66 0%, #083D39 60%, #0A2825 100%);
+  color: #fff; padding: clamp(48px, 8vw, 96px) 0 clamp(40px, 6vw, 72px);
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 70% 50%, rgba(62,183,169,.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-inner { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px; padding: 4px 14px; margin-bottom: 18px; letter-spacing: .02em;
+}
+.hero-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: #3FB7A9; display: block; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+.hero h1 { font: 700 clamp(32px,5vw,56px)/1.1 var(--display); letter-spacing: -.025em; margin-bottom: 16px; }
+.hero p { font-size: clamp(16px, 2vw, 19px); opacity: .82; max-width: 56ch; line-height: 1.55; }
+.hero-meta { display: flex; gap: 24px; margin-top: 28px; flex-wrap: wrap; }
+.hero-meta span { font-size: 14px; opacity: .72; display: flex; align-items: center; gap: 6px; }
+
+/* floating wave shapes */
+.hero-shapes { position: absolute; right: 0; top: 0; bottom: 0; width: 400px; pointer-events: none; opacity: .07; }
+.hero-shapes svg { width: 100%; height: 100%; }
+
+/* ===== Search & filter bar ===== */
+.search-bar {
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+  padding: 14px 0; box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+.search-inner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input-wrap { position: relative; flex: 1; min-width: 220px; }
+.search-input-wrap svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+#searchInput {
+  width: 100%; padding: 11px 14px 11px 40px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--canvas); font: inherit; font-size: 15px; color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+#searchInput:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(11,110,102,.15); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-btn {
+  border: 1px solid var(--line); background: var(--canvas); color: var(--muted);
+  border-radius: 999px; padding: 6px 14px; font: 600 13px var(--body); cursor: pointer;
+  transition: all .15s;
+}
+.filter-btn:hover { border-color: var(--brand); color: var(--ink); }
+.filter-btn.active { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+/* ===== Section label ===== */
+.section-label {
+  font: 700 11.5px/1 var(--display); text-transform: uppercase; letter-spacing: .09em;
+  color: var(--muted); margin: 40px 0 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* ===== Cards grid ===== */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 22px; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .12s;
+  display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden;
+}
+.card::before {
+  content: ''; position: absolute; inset: 0; opacity: 0;
+  background: linear-gradient(135deg, var(--brand-soft), transparent);
+  transition: opacity .2s;
+}
+.card:hover { border-color: var(--brand); box-shadow: 0 6px 24px rgba(11,110,102,.12); transform: translateY(-2px); }
+.card:hover::before { opacity: 1; }
+.card:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(11,110,102,.2); outline: none; }
+.card-top { display: flex; align-items: flex-start; gap: 14px; position: relative; }
+.card-icon {
+  width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+  font-size: 22px; flex: none; font-style: normal;
+}
+.card-icon.ai    { background: #EEF2FF; }
+.card-icon.data  { background: #FEF3C7; }
+.card-icon.storage { background: #ECFDF5; }
+.card-icon.payments { background: #FFF7ED; }
+.card-icon.messaging { background: #F0F9FF; }
+.card-icon.infra  { background: #F5F3FF; }
+.card-icon.email  { background: #FDF4FF; }
+.card-icon.other  { background: #F8FAFC; }
+@media (prefers-color-scheme: dark) {
+  .card-icon.ai { background: #1e1b4b; }
+  .card-icon.data { background: #292524; }
+  .card-icon.storage { background: #064e3b; }
+  .card-icon.payments { background: #431407; }
+  .card-icon.messaging { background: #0c4a6e; }
+  .card-icon.infra { background: #2e1065; }
+  .card-icon.email { background: #3b0764; }
+  .card-icon.other { background: #1e293b; }
+}
+.card-title { font: 700 17px/1.25 var(--display); }
+.card-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.card-badge {
+  margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 3px 9px;
+  border-radius: 999px; white-space: nowrap; flex: none;
+}
+.card-badge.required { background: #FEE2E2; color: #991B1B; }
+.card-badge.optional { background: var(--canvas); color: var(--muted); }
+.card-badge.core { background: var(--brand-soft); color: var(--brand); }
+@media (prefers-color-scheme: dark) {
+  .card-badge.required { background: #450a0a; color: #fca5a5; }
+  .card-badge.core { background: var(--brand-soft); color: var(--brand); }
+}
+.card-desc { font-size: 14px; color: var(--muted); line-height: 1.55; position: relative; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag {
+  font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+  background: var(--canvas); color: var(--muted);
+}
+.card-arrow {
+  display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--brand); margin-top: auto; position: relative;
+  transition: gap .15s;
+}
+.card:hover .card-arrow { gap: 10px; }
+
+/* ===== API Endpoint quick table ===== */
+.endpoint-strip {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  margin-bottom: 40px; overflow: hidden;
+}
+.endpoint-strip h3 { font: 700 14px/1 var(--display); padding: 12px 18px; border-bottom: 1px solid var(--line); color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.ep-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ep-table tr + tr td { border-top: 1px solid var(--line); }
+.ep-table td { padding: 10px 14px; vertical-align: middle; }
+.ep-table td:first-child { width: 1%; white-space: nowrap; }
+.method {
+  font: 600 11.5px/1 var(--mono); padding: 3px 8px; border-radius: 6px; display: inline-block;
+}
+.method.get  { background: #DCFCE7; color: #166534; }
+.method.post { background: #DBEAFE; color: #1D4ED8; }
+.method.patch{ background: #FEF3C7; color: #92400E; }
+.method.delete{background: #FEE2E2; color: #991B1B; }
+@media (prefers-color-scheme: dark) {
+  .method.get  { background: #14532d; color: #86efac; }
+  .method.post { background: #1e3a8a; color: #93c5fd; }
+  .method.patch{ background: #451a03; color: #fcd34d; }
+  .method.delete{background: #450a0a; color: #fca5a5; }
+}
+.ep-path { font-family: var(--mono); font-size: 13px; }
+.ep-note { color: var(--muted); font-size: 13px; }
+
+/* ===== Footer ===== */
+footer {
+  margin-top: 80px; padding: 32px 0; border-top: 1px solid var(--line);
+  font-size: 14px; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+}
+footer a { color: var(--brand); font-weight: 600; }
+
+/* ===== No results ===== */
+.no-results { text-align: center; padding: 60px 20px; color: var(--muted); display: none; }
+.no-results svg { opacity: .3; margin-bottom: 16px; }
+.no-results h3 { font: 700 20px/1.2 var(--display); color: var(--ink); margin-bottom: 6px; }
+
+/* ===== Count badge ===== */
+.count { font-size: 13px; font-weight: 600; background: var(--canvas); padding: 2px 9px; border-radius: 999px; color: var(--muted); margin-left: auto; }
+
+/* ===== Back-to-top ===== */
+#btt {
+  position: fixed; bottom: 28px; right: 28px; width: 44px; height: 44px;
+  background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.2);
+  opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 100;
+}
+#btt.show { opacity: 1; pointer-events: auto; }
+#btt:hover { transform: translateY(-3px); }
+
+/* ===== Doc page overlay ===== */
+/* (actual doc pages open in a new tab, but we also support an in-page detail view for quick ref) */
+
+/* ===== Responsive ===== */
+@media (max-width: 640px) {
+  .hero-meta { gap: 12px; }
+  .cards { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Hero ===== -->
+<header class="hero">
+  <div class="hero-shapes" aria-hidden="true">
+    <svg viewBox="0 0 400 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="300" cy="100" r="200" fill="white"/>
+      <circle cx="100" cy="400" r="150" fill="white"/>
+      <circle cx="350" cy="450" r="100" fill="white"/>
+    </svg>
+  </div>
+  <div class="wrapper">
+    <div class="hero-inner">
+      <div>
+        <div class="hero-badge"><span class="dot"></span> Integration Docs</div>
+        <h1>Ndimi API &amp;<br>Integration Guides</h1>
+        <p>Step-by-step setup documentation for every third-party service, API key and infrastructure component that powers the Ndimi dubbing platform.</p>
+        <div class="hero-meta">
+          <span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            11 integrations documented
+          </span>
+          <span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Updated September 2026
+          </span>
+          <span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            Django + Python backend
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== Sticky search / filter bar ===== -->
+<div class="search-bar">
+  <div class="wrapper">
+    <div class="search-inner">
+      <div class="search-input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="searchInput" type="search" placeholder="Search integrations…" autocomplete="off" aria-label="Search integrations">
+      </div>
+      <div class="filters" role="group" aria-label="Filter by category">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="ai">AI &amp; Speech</button>
+        <button class="filter-btn" data-filter="storage">Storage</button>
+        <button class="filter-btn" data-filter="payments">Payments</button>
+        <button class="filter-btn" data-filter="messaging">Messaging</button>
+        <button class="filter-btn" data-filter="infra">Infrastructure</button>
+      </div>
+      <span class="count" id="countBadge">11</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Ndimi REST API ===== -->
+<div class="wrapper">
+  <p class="section-label">Ndimi REST API reference</p>
+  <div class="endpoint-strip">
+    <h3>Endpoints</h3>
+    <table class="ep-table">
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/health/</td>
+        <td class="ep-note">Health check — Django service + MongoDB (public, no auth)</td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/config/</td>
+        <td class="ep-note">Signed-in user, enabled languages, demo setup</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/config/setup/</td>
+        <td class="ep-note">Upload demo videos &amp; script — requires <em>Can change demo setup</em></td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/projects/</td>
+        <td class="ep-note">List own projects (all projects with <em>Can see every user's projects</em>)</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/projects/</td>
+        <td class="ep-note">Create project — body: <code>{"name":"…","target_language":"…"}</code></td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/dubs/</td>
+        <td class="ep-note">List dub jobs for current user</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/dubs/</td>
+        <td class="ep-note">Create dub — multipart: <code>file</code> or <code>source_url</code>, <code>target_language</code>, <code>source_language</code>, <code>review</code>, <code>clone_voices</code>, <code>num_speakers</code>, <code>glossary</code> JSON</td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/</td>
+        <td class="ep-note">Job status, stages, speakers, transcript lines, events</td>
+      </tr>
+      <tr>
+        <td><span class="method delete">DELETE</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/</td>
+        <td class="ep-note">Delete job (also removes cloned voices from ElevenLabs)</td>
+      </tr>
+      <tr>
+        <td><span class="method patch">PATCH</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/segments/&lt;n&gt;/</td>
+        <td class="ep-note">Edit transcript segment — <code>translated_text</code>, <code>speaker_id</code>, <code>start</code>, <code>end</code></td>
+      </tr>
+      <tr>
+        <td><span class="method patch">PATCH</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/speakers/&lt;pk&gt;/</td>
+        <td class="ep-note">Edit speaker — <code>name</code>, <code>voice_id</code></td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/approve/</td>
+        <td class="ep-note">Approve reviewed script → generate voices</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/regenerate/</td>
+        <td class="ep-note">Re-voice lines marked "needs new voice" and re-render</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/cancel/</td>
+        <td class="ep-note">Cancel a running job</td>
+      </tr>
+      <tr>
+        <td><span class="method post">POST</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/retry/</td>
+        <td class="ep-note">Retry a failed job (skips completed stages)</td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/dubs/&lt;id&gt;/download/video|audio|subtitles|source-subtitles|source/</td>
+        <td class="ep-note">Stream or download output — add <code>?download=1</code> to force save</td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span></td>
+        <td class="ep-path">/api/manage/&lt;section&gt;/</td>
+        <td class="ep-note">Staff: list / read settings section — drives in-app Settings UI</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ===== Auth note ===== -->
+  <div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r);padding:14px 18px;font-size:14px;margin-bottom:36px;display:flex;gap:10px;align-items:flex-start">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+    <div><strong>Authentication:</strong> All endpoints except <code>/api/health/</code> require a signed-in session (<code>401</code> otherwise) and the <em>Can use the dubbing tool</em> permission (<code>403</code> otherwise). State-changing calls must include the <code>X-CSRFToken</code> header (read it from the <code>csrftoken</code> cookie).</div>
+  </div>
+
+  <!-- ===== Integration cards ===== -->
+  <p class="section-label" id="integrations-heading">Third-party integrations <span class="count" id="countBadge2">11</span></p>
+
+  <div class="cards" id="cards">
+
+    <!-- 1. ElevenLabs -->
+    <article class="card" tabindex="0" data-cat="ai" data-name="ElevenLabs Scribe Voice TTS" data-slug="elevenlabs" role="button" aria-label="Open ElevenLabs documentation">
+      <div class="card-top">
+        <span class="card-icon ai" aria-hidden="true">🎙️</span>
+        <div>
+          <div class="card-title">ElevenLabs</div>
+          <div class="card-subtitle">Speech-to-text · TTS · Voice cloning · Dubbing API</div>
+        </div>
+        <span class="card-badge required">Required</span>
+      </div>
+      <p class="card-desc">Powers speech recognition (Scribe), Kiswahili &amp; Somali voice synthesis, speaker voice cloning, and the one-click ElevenLabs Dubbing API for supported languages.</p>
+      <div class="card-tags">
+        <span class="tag">eleven_v3</span>
+        <span class="tag">Voice cloning</span>
+        <span class="tag">Scribe STT</span>
+        <span class="tag">Dubbing API</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 2. OpenAI -->
+    <article class="card" tabindex="0" data-cat="ai" data-name="OpenAI Whisper GPT Translation" data-slug="openai" role="button" aria-label="Open OpenAI documentation">
+      <div class="card-top">
+        <span class="card-icon ai" aria-hidden="true">🤖</span>
+        <div>
+          <div class="card-title">OpenAI</div>
+          <div class="card-subtitle">Whisper STT · GPT translation</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">Provides Whisper for speech transcription and GPT models for context-aware, time-fitted translation. Configurable model via the <code>translation_model</code> config key.</p>
+      <div class="card-tags">
+        <span class="tag">Whisper</span>
+        <span class="tag">GPT-4o</span>
+        <span class="tag">Translation</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 3. Google Cloud -->
+    <article class="card" tabindex="0" data-cat="ai" data-name="Google Cloud Translate Speech" data-slug="google" role="button" aria-label="Open Google Cloud documentation">
+      <div class="card-top">
+        <span class="card-icon ai" aria-hidden="true">☁️</span>
+        <div>
+          <div class="card-title">Google Cloud</div>
+          <div class="card-subtitle">Cloud Translate · Speech-to-Text</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">Alternative translation provider using Google Cloud Translation API. Can be selected per-job in Dubbing settings as a translation stage provider.</p>
+      <div class="card-tags">
+        <span class="tag">Cloud Translate</span>
+        <span class="tag">STT alt</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 4. Cloudflare R2 -->
+    <article class="card" tabindex="0" data-cat="storage" data-name="Cloudflare R2 Object Storage" data-slug="cloudflare-r2" role="button" aria-label="Open Cloudflare R2 documentation">
+      <div class="card-top">
+        <span class="card-icon storage" aria-hidden="true">🗄️</span>
+        <div>
+          <div class="card-title">Cloudflare R2</div>
+          <div class="card-subtitle">Object storage for videos &amp; outputs</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">S3-compatible zero-egress object storage for uploaded media and rendered dubbing outputs. Preferred over AWS S3 for cost-efficiency serving Kenyan users.</p>
+      <div class="card-tags">
+        <span class="tag">S3-compatible</span>
+        <span class="tag">Zero egress</span>
+        <span class="tag">Bucket</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 5. AWS S3 -->
+    <article class="card" tabindex="0" data-cat="storage" data-name="AWS S3 Amazon Storage" data-slug="aws-s3" role="button" aria-label="Open AWS S3 documentation">
+      <div class="card-top">
+        <span class="card-icon storage" aria-hidden="true">📦</span>
+        <div>
+          <div class="card-title">AWS S3</div>
+          <div class="card-subtitle">Amazon object storage</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">Alternative to Cloudflare R2 for media and output file storage. Uses the same <code>boto3</code> / S3-compatible interface — configure bucket and region in the integration Config field.</p>
+      <div class="card-tags">
+        <span class="tag">IAM</span>
+        <span class="tag">Bucket</span>
+        <span class="tag">boto3</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 6. M-Pesa Daraja -->
+    <article class="card" tabindex="0" data-cat="payments" data-name="M-Pesa Daraja Safaricom Kenya payments" data-slug="mpesa" role="button" aria-label="Open M-Pesa Daraja documentation">
+      <div class="card-top">
+        <span class="card-icon payments" aria-hidden="true">📱</span>
+        <div>
+          <div class="card-title">M-Pesa (Daraja)</div>
+          <div class="card-subtitle">Safaricom mobile money — Kenya</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">Safaricom Daraja API for STK Push and C2B M-Pesa payments. Supports sandbox (test) and live environments. Shortcode goes in Config; consumer key/secret are encrypted.</p>
+      <div class="card-tags">
+        <span class="tag">STK Push</span>
+        <span class="tag">C2B</span>
+        <span class="tag">Sandbox</span>
+        <span class="tag">Kenya</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 7. Stripe -->
+    <article class="card" tabindex="0" data-cat="payments" data-name="Stripe card payments subscriptions" data-slug="stripe" role="button" aria-label="Open Stripe documentation">
+      <div class="card-top">
+        <span class="card-icon payments" aria-hidden="true">💳</span>
+        <div>
+          <div class="card-title">Stripe</div>
+          <div class="card-subtitle">Card payments &amp; subscriptions</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">International card payments and subscription billing. Secret key is encrypted; publishable key goes in Config. Use Stripe's test mode before going live.</p>
+      <div class="card-tags">
+        <span class="tag">Webhooks</span>
+        <span class="tag">Subscriptions</span>
+        <span class="tag">Test mode</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 8. Africa's Talking -->
+    <article class="card" tabindex="0" data-cat="messaging" data-name="Africa's Talking SMS USSD Africa" data-slug="africastalking" role="button" aria-label="Open Africa's Talking documentation">
+      <div class="card-top">
+        <span class="card-icon messaging" aria-hidden="true">📡</span>
+        <div>
+          <div class="card-title">Africa's Talking</div>
+          <div class="card-subtitle">SMS · USSD · Voice — Africa</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">African-first messaging infrastructure for SMS notifications, USSD flows and voice calls. Sandbox username is <code>sandbox</code>; live uses your registered username.</p>
+      <div class="card-tags">
+        <span class="tag">SMS</span>
+        <span class="tag">USSD</span>
+        <span class="tag">Sandbox</span>
+        <span class="tag">Kenya</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 9. AfriVoices-KE -->
+    <article class="card" tabindex="0" data-cat="ai" data-name="AfriVoices-KE Kenyan language data dataset" data-slug="afrivoices-ke" role="button" aria-label="Open AfriVoices-KE documentation">
+      <div class="card-top">
+        <span class="card-icon data" aria-hidden="true">🎵</span>
+        <div>
+          <div class="card-title">AfriVoices-KE</div>
+          <div class="card-subtitle">Kenyan language speech dataset</div>
+        </div>
+        <span class="card-badge core">Core data</span>
+      </div>
+      <p class="card-desc">Native-speaker recordings in Gĩkũyũ, Dholuo, Kalenjin, Maa and other Kenyan languages. Used to train Ndimi's own STT, translation, and TTS models via the custom Ndimi-models integration.</p>
+      <div class="card-tags">
+        <span class="tag">Gĩkũyũ</span>
+        <span class="tag">Dholuo</span>
+        <span class="tag">Kalenjin</span>
+        <span class="tag">Training data</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 10. MongoDB -->
+    <article class="card" tabindex="0" data-cat="infra" data-name="MongoDB Atlas database" data-slug="mongodb" role="button" aria-label="Open MongoDB documentation">
+      <div class="card-top">
+        <span class="card-icon infra" aria-hidden="true">🍃</span>
+        <div>
+          <div class="card-title">MongoDB</div>
+          <div class="card-subtitle">Document database (Atlas or local)</div>
+        </div>
+        <span class="card-badge required">Required</span>
+      </div>
+      <p class="card-desc">Stores application documents (transcripts, segments, events). Set <code>MONGO_URI</code> in <code>.env</code> to a MongoDB Atlas connection string or leave it pointing at a local instance.</p>
+      <div class="card-tags">
+        <span class="tag">Atlas</span>
+        <span class="tag">MONGO_URI</span>
+        <span class="tag">Local dev</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+    <!-- 11. SMTP Email -->
+    <article class="card" tabindex="0" data-cat="infra" data-name="SMTP Email Gmail Outlook transactional" data-slug="smtp" role="button" aria-label="Open SMTP email documentation">
+      <div class="card-top">
+        <span class="card-icon email" aria-hidden="true">✉️</span>
+        <div>
+          <div class="card-title">SMTP Email</div>
+          <div class="card-subtitle">Transactional email (password reset, verification)</div>
+        </div>
+        <span class="card-badge optional">Optional</span>
+      </div>
+      <p class="card-desc">Sends account emails — password resets, email verification, security alerts. Until SMTP is configured, all emails are printed in the Django server console for easy local testing.</p>
+      <div class="card-tags">
+        <span class="tag">Gmail</span>
+        <span class="tag">Outlook</span>
+        <span class="tag">STARTTLS</span>
+        <span class="tag">SSL/TLS</span>
+      </div>
+      <div class="card-arrow">Open setup guide <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </article>
+
+  </div><!-- /cards -->
+
+  <div class="no-results" id="noResults">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <h3>No integrations found</h3>
+    <p>Try a different keyword or clear the filter.</p>
+  </div>
+
+  <!-- ===== Footer ===== -->
+  <footer>
+    <span>Ndimi by <a href="https://jeotamedia.com" target="_blank" rel="noopener">Jeota Media</a> · Integration Docs</span>
+    <span>
+      <a href="index.html">← Back to app</a>
+      &nbsp;·&nbsp;
+      <a href="README.md" target="_blank">README</a>
+    </span>
+  </footer>
+</div><!-- /wrapper -->
+
+<button id="btt" aria-label="Back to top" title="Back to top">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+
+<script>
+/* ================================================================
+   Ndimi Integration Docs — interactive filtering + new-tab guides
+   ================================================================ */
+(function () {
+
+/* ---- Search & filter ---- */
+const cards = Array.from(document.querySelectorAll('.card'));
+const searchInput = document.getElementById('searchInput');
+const filterBtns = document.querySelectorAll('.filter-btn');
+const noResults = document.getElementById('noResults');
+const countBadge = document.getElementById('countBadge');
+const countBadge2 = document.getElementById('countBadge2');
+
+let activeFilter = 'all';
+
+function updateCount(n) {
+  countBadge.textContent = n;
+  countBadge2.textContent = n;
+}
+
+function applyFilters() {
+  const q = searchInput.value.trim().toLowerCase();
+  let visible = 0;
+  cards.forEach(card => {
+    const name = (card.dataset.name || '').toLowerCase();
+    const cat = card.dataset.cat || '';
+    const matchFilter = activeFilter === 'all' || cat === activeFilter;
+    const matchSearch = !q || name.includes(q);
+    const show = matchFilter && matchSearch;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  noResults.style.display = visible === 0 ? 'block' : 'none';
+  updateCount(visible);
+}
+
+searchInput.addEventListener('input', applyFilters);
+
+filterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    filterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    applyFilters();
+  });
+});
+
+/* ---- Back to top ---- */
+const btt = document.getElementById('btt');
+window.addEventListener('scroll', () => {
+  btt.classList.toggle('show', window.scrollY > 300);
+}, { passive: true });
+btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+/* ================================================================
+   GUIDE PAGES
+   Each card click builds a full HTML guide page and opens it in a
+   new browser tab using a Blob URL — no server needed.
+   ================================================================ */
+
+const GUIDES = {
+  elevenlabs: {
+    name: 'ElevenLabs',
+    icon: '🎙️',
+    cat: 'AI Speech & Translation',
+    badge: 'Required',
+    color: '#7C3AED',
+    docsUrl: 'https://elevenlabs.io/docs',
+    dashboardUrl: 'https://elevenlabs.io/app/settings/api-keys',
+    intro: 'ElevenLabs is the primary AI provider for Ndimi. It powers three core capabilities: <strong>Scribe</strong> (speaker-diarised, word-level speech transcription), <strong>eleven_v3 TTS</strong> with native Kiswahili and Somali support, and the <strong>ElevenLabs Dubbing API</strong> — a one-click end-to-end dubbing pipeline used for selected languages.',
+    steps: [
+      {
+        title: 'Create an ElevenLabs account',
+        body: `Go to <a href="https://elevenlabs.io" target="_blank" rel="noopener">elevenlabs.io</a> and click <strong>Sign up</strong>. Verify your email. Choose a plan that includes API access — the <em>Starter</em> plan includes character quota and API keys, while <em>Creator</em> and above include voice cloning and higher rate limits.`,
+      },
+      {
+        title: 'Generate an API key',
+        body: `Navigate to <strong>Settings → API Keys</strong> (or go directly to <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">elevenlabs.io/app/settings/api-keys</a>).<br><br>
+Click <strong>Create API Key</strong>, give it a name like <code>Ndimi production</code>, and copy the key immediately — it will not be shown again.`,
+        code: `# Example key format\nsk_...abc123`,
+        lang: 'bash',
+      },
+      {
+        title: 'Add the key to Ndimi',
+        body: `In the Ndimi admin panel, go to <strong>Settings → Integrations &amp; API keys</strong>.<br><br>
+Find <em>ElevenLabs</em> in the list and click it to open the edit form. Paste your API key into <strong>API key</strong>, switch <strong>Enabled</strong> on, and save.<br><br>
+<em>Keys and secrets are encrypted with <code>FIELD_ENCRYPTION_KEY</code> from <code>.env</code> and never shown again.</em>`,
+      },
+      {
+        title: 'Configure the dubbing engine',
+        body: `Go to <strong>Settings → Dubbing engine</strong>. Under <em>Languages using ElevenLabs Dubbing API</em>, add the language codes that should use the one-click pipeline (default: <code>sw,ki</code>).<br><br>
+Set the <strong>Speech-to-text</strong> stage to <em>ElevenLabs Scribe</em> for the best speaker-diarised output with word-level timings.`,
+      },
+      {
+        title: 'Verify voice cloning works',
+        body: `Start a dub with <strong>Keep the original voices</strong> on. After the transcription stage, Ndimi will call ElevenLabs' Instant Voice Cloning API for each speaker. Cloned voices are stored against the dub job and deleted from ElevenLabs when the job is deleted.`,
+      },
+      {
+        title: '(Optional) Set a custom base URL',
+        body: `Leave <strong>Base URL</strong> empty to use ElevenLabs' default API endpoint (<code>https://api.elevenlabs.io</code>). Set a custom URL only if routing through a proxy or using an enterprise endpoint.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+
+creds = Integration.credentials('elevenlabs')
+if creds:
+    api_key = creds['api_key']
+    # Use with the official elevenlabs Python SDK or requests`,
+    troubleshooting: [
+      { q: 'I get a 401 from ElevenLabs', a: 'The API key is wrong or expired. Re-generate it on the ElevenLabs dashboard and update the integration.' },
+      { q: 'Voice cloning fails silently', a: 'Ensure your plan includes Instant Voice Cloning. Check the dub job\'s event log for the raw ElevenLabs error.' },
+      { q: 'Scribe returns no speakers', a: 'Pass <code>num_speakers</code> in the dub request if you know the count. For solo content, set it to <code>1</code>.' },
+    ],
+  },
+
+  openai: {
+    name: 'OpenAI',
+    icon: '🤖',
+    cat: 'AI Speech & Translation',
+    badge: 'Optional',
+    color: '#10A37F',
+    docsUrl: 'https://platform.openai.com/docs',
+    dashboardUrl: 'https://platform.openai.com/api-keys',
+    intro: 'OpenAI provides two capabilities in Ndimi: <strong>Whisper</strong> for speech-to-text as an alternative to ElevenLabs Scribe, and <strong>GPT models</strong> for context-aware translation that fits each line into its original time slot. You only need OpenAI if you select it as your STT or translation provider in Dubbing settings.',
+    steps: [
+      {
+        title: 'Create an OpenAI platform account',
+        body: `Go to <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a> and sign up or log in. Add a payment method under <strong>Billing</strong> — OpenAI charges per token/minute with no monthly minimum.`,
+      },
+      {
+        title: 'Create an API key',
+        body: `Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>, click <strong>Create new secret key</strong>, name it <code>Ndimi</code>, and copy it.`,
+        code: `# Key format\nsk-proj-...abc123`,
+        lang: 'bash',
+      },
+      {
+        title: 'Add the key to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>OpenAI</em>, paste the key into <strong>API key</strong>, enable it, and save.<br><br>
+To specify the GPT model, add a <strong>Config</strong> JSON entry:`,
+        code: `{"translation_model": "gpt-4o-mini"}`,
+        lang: 'json',
+      },
+      {
+        title: 'Select OpenAI as a provider',
+        body: `In <strong>Settings → Dubbing engine</strong>:<br>
+• Set <em>Speech-to-text</em> to <strong>OpenAI Whisper</strong> (or leave it as ElevenLabs Scribe).<br>
+• Set <em>Translation</em> to <strong>OpenAI</strong>.`,
+      },
+      {
+        title: 'Test translation quality',
+        body: `Create a dub with <strong>Review the script first</strong> turned on. After transcription and translation, the job pauses so you can inspect every translated line in the studio before voices are generated.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+
+creds = Integration.credentials('openai')
+if creds:
+    api_key = creds['api_key']
+    model   = creds['config'].get('translation_model', 'gpt-4o')`,
+    troubleshooting: [
+      { q: 'Translation times out on long videos', a: 'OpenAI GPT calls are synchronous. For videos over 10 min consider splitting by chapter, or switch to Google Translate which is faster per segment.' },
+      { q: 'Whisper returns wrong language', a: 'Pass <code>source_language</code> explicitly in the dub request. Whisper auto-detection is less reliable for code-switched Kenyan speech.' },
+    ],
+  },
+
+  google: {
+    name: 'Google Cloud',
+    icon: '☁️',
+    cat: 'AI Speech & Translation',
+    badge: 'Optional',
+    color: '#4285F4',
+    docsUrl: 'https://cloud.google.com/translate/docs',
+    dashboardUrl: 'https://console.cloud.google.com/apis/credentials',
+    intro: 'Google Cloud Translation API is an alternative translation provider in Ndimi\'s dubbing engine. It offers high-throughput, cost-predictable translation into 100+ languages and is a good fallback when OpenAI is unavailable or cost is a concern.',
+    steps: [
+      {
+        title: 'Create or select a Google Cloud project',
+        body: `Go to the <a href="https://console.cloud.google.com" target="_blank" rel="noopener">Google Cloud Console</a>. Create a new project (e.g. <code>ndimi-prod</code>) or select an existing one.`,
+      },
+      {
+        title: 'Enable the Cloud Translation API',
+        body: `In the console, go to <strong>APIs &amp; Services → Library</strong>, search for <em>Cloud Translation API</em>, and click <strong>Enable</strong>.`,
+      },
+      {
+        title: 'Create a service account and key',
+        body: `Go to <strong>IAM &amp; Admin → Service Accounts</strong>. Click <strong>Create Service Account</strong>, name it <code>ndimi-translate</code>, and grant it the <em>Cloud Translation API User</em> role.<br><br>
+Click the service account, go to <strong>Keys → Add Key → Create new key (JSON)</strong>. Download the JSON file.`,
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>Google Cloud</em>. Paste the full contents of the JSON key file into <strong>API key</strong>. Enable the integration and save.`,
+        code: `# The JSON looks like:\n{\n  "type": "service_account",\n  "project_id": "ndimi-prod",\n  "private_key_id": "...",\n  "private_key": "-----BEGIN RSA PRIVATE KEY-----\\n...",\n  "client_email": "ndimi-translate@ndimi-prod.iam.gserviceaccount.com",\n  ...\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Select Google Translate in Dubbing settings',
+        body: `In <strong>Settings → Dubbing engine</strong>, set the <em>Translation</em> stage to <strong>Google Translate</strong>.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+import json
+
+creds = Integration.credentials('google')
+if creds:
+    service_account_info = json.loads(creds['api_key'])`,
+    troubleshooting: [
+      { q: 'PermissionDenied from Google', a: 'Ensure the Cloud Translation API is enabled for your project and the service account has the correct role.' },
+      { q: 'Translations are too literal', a: 'Google Translate lacks context-window awareness. For creative content, prefer OpenAI GPT translation.' },
+    ],
+  },
+
+  'cloudflare-r2': {
+    name: 'Cloudflare R2',
+    icon: '🗄️',
+    cat: 'Storage',
+    badge: 'Optional',
+    color: '#F6821F',
+    docsUrl: 'https://developers.cloudflare.com/r2/',
+    dashboardUrl: 'https://dash.cloudflare.com/?to=/:account/r2',
+    intro: 'Cloudflare R2 is an S3-compatible object storage service with <strong>zero egress fees</strong> — ideal for serving video files to Kenyan users without paying bandwidth charges on downloads. Uploaded media and rendered dub outputs will be stored here when object storage is wired into the Django backend.',
+    steps: [
+      {
+        title: 'Create a Cloudflare account',
+        body: `Go to <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">dash.cloudflare.com/sign-up</a>. R2 is available on the free plan with 10 GB free storage and 1 million free Class A operations per month.`,
+      },
+      {
+        title: 'Create an R2 bucket',
+        body: `In the Cloudflare dashboard, navigate to <strong>R2 Object Storage</strong>. Click <strong>Create bucket</strong>, name it <code>ndimi-media</code> (or similar), and choose a location closest to Kenya (e.g. <em>ENAM — Eastern North America</em> or <em>WEUR — Western Europe</em> — R2 serves globally via Cloudflare's network regardless).`,
+      },
+      {
+        title: 'Create R2 API tokens',
+        body: `In <strong>R2 → Manage R2 API Tokens</strong>, click <strong>Create API token</strong>. Grant it <em>Object Read &amp; Write</em> on your specific bucket. Copy the <strong>Access Key ID</strong> and <strong>Secret Access Key</strong>.`,
+      },
+      {
+        title: 'Find your account ID',
+        body: `Your Cloudflare Account ID appears in the URL of the dashboard (<code>dash.cloudflare.com/&lt;account-id&gt;</code>) and on the right panel of the R2 page.`,
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>Cloudflare R2</em>:<br>
+• <strong>API key</strong> → Access Key ID<br>
+• <strong>Secret</strong> → Secret Access Key<br>
+• <strong>Config</strong> → non-secret settings:`,
+        code: `{\n  "bucket": "ndimi-media",\n  "account_id": "your-cloudflare-account-id",\n  "endpoint": "https://<account_id>.r2.cloudflarestorage.com",\n  "region": "auto"\n}`,
+        lang: 'json',
+      },
+      {
+        title: '(Optional) Enable a public custom domain',
+        body: `In R2 bucket settings, click <strong>Connect Domain</strong> to serve files via <code>media.jeotamedia.com</code> instead of a raw R2 URL. Add the CNAME record shown to your DNS.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+import boto3
+
+creds = Integration.credentials('cloudflare-r2')
+if creds:
+    s3 = boto3.client(
+        's3',
+        endpoint_url=creds['config']['endpoint'],
+        aws_access_key_id=creds['api_key'],
+        aws_secret_access_key=creds['api_secret'],
+        region_name=creds['config'].get('region', 'auto'),
+    )`,
+    troubleshooting: [
+      { q: 'NoSuchBucket error', a: 'Check that <code>bucket</code> in Config exactly matches the bucket name you created (case-sensitive).' },
+      { q: 'SignatureDoesNotMatch', a: 'Ensure the Secret Access Key has no leading/trailing spaces when saved. Re-enter it in the integration form.' },
+    ],
+  },
+
+  'aws-s3': {
+    name: 'AWS S3',
+    icon: '📦',
+    cat: 'Storage',
+    badge: 'Optional',
+    color: '#FF9900',
+    docsUrl: 'https://docs.aws.amazon.com/s3/',
+    dashboardUrl: 'https://console.aws.amazon.com/s3/',
+    intro: 'Amazon S3 is the industry-standard object storage service. Use it as an alternative to Cloudflare R2. Both use the same <code>boto3</code> SDK — the difference is the endpoint URL and pricing model.',
+    steps: [
+      {
+        title: 'Create an AWS account',
+        body: `Go to <a href="https://aws.amazon.com" target="_blank" rel="noopener">aws.amazon.com</a> and sign up. Add a credit card — S3 charges are based on storage used and data transfer.`,
+      },
+      {
+        title: 'Create an S3 bucket',
+        body: `In the <a href="https://console.aws.amazon.com/s3/" target="_blank" rel="noopener">S3 console</a>, click <strong>Create bucket</strong>. Name it <code>ndimi-media-prod</code>, choose <strong>af-south-1 (Cape Town)</strong> for lowest latency to Kenya, and leave <em>Block all public access</em> on (files will be served signed or via CloudFront).`,
+      },
+      {
+        title: 'Create an IAM user with S3 access',
+        body: `In the <strong>IAM console</strong>, click <strong>Users → Create user</strong>. Name it <code>ndimi-s3</code>. Attach the <em>AmazonS3FullAccess</em> policy (or a custom policy scoped to your bucket). Under <strong>Security credentials</strong>, create an <strong>Access key</strong> (type: Application) and copy the Key ID and Secret.`,
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>AWS S3</em>:<br>
+• <strong>API key</strong> → Access Key ID<br>
+• <strong>Secret</strong> → Secret Access Key<br>
+• <strong>Config</strong>:`,
+        code: `{\n  "bucket": "ndimi-media-prod",\n  "region": "af-south-1"\n}`,
+        lang: 'json',
+      },
+    ],
+    codeRead: `from system.models import Integration
+import boto3
+
+creds = Integration.credentials('aws-s3')
+if creds:
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=creds['api_key'],
+        aws_secret_access_key=creds['api_secret'],
+        region_name=creds['config'].get('region', 'us-east-1'),
+    )`,
+    troubleshooting: [
+      { q: 'AccessDenied on put_object', a: 'Verify the IAM user has <code>s3:PutObject</code> on <code>arn:aws:s3:::ndimi-media-prod/*</code>.' },
+      { q: 'High egress costs', a: 'Consider switching to Cloudflare R2 which has zero egress fees and an S3-compatible API.' },
+    ],
+  },
+
+  mpesa: {
+    name: 'M-Pesa (Daraja)',
+    icon: '📱',
+    cat: 'Payments',
+    badge: 'Optional',
+    color: '#00A651',
+    docsUrl: 'https://developer.safaricom.co.ke/docs',
+    dashboardUrl: 'https://developer.safaricom.co.ke/MyApps',
+    intro: 'Safaricom\'s Daraja API lets Ndimi accept M-Pesa payments directly from Kenyan users via <strong>STK Push</strong> (Lipa na M-Pesa online) or <strong>C2B</strong> paybill integration. The sandbox environment lets you test without real money.',
+    steps: [
+      {
+        title: 'Register on the Safaricom Developer Portal',
+        body: `Go to <a href="https://developer.safaricom.co.ke" target="_blank" rel="noopener">developer.safaricom.co.ke</a> and click <strong>Get Started</strong>. Create an account with a valid email.`,
+      },
+      {
+        title: 'Create a sandbox app',
+        body: `After login, go to <strong>My Apps → Add a New App</strong>. Name it <code>Ndimi Sandbox</code>, select the APIs you need (at minimum: <em>Lipa Na Mpesa Sandbox</em>), and click <strong>Create App</strong>. You'll receive a <strong>Consumer Key</strong> and <strong>Consumer Secret</strong>.`,
+      },
+      {
+        title: 'Note your sandbox credentials',
+        body: `Safaricom provides shared sandbox credentials for STK Push testing:`,
+        code: `Sandbox Business Short Code: 174379\nLipa Na Mpesa Online Passkey:  bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919\nTest phone number:             254708374149`,
+        lang: 'text',
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>M-Pesa (Daraja)</em>:<br>
+• <strong>API key</strong> → Consumer Key<br>
+• <strong>Secret</strong> → Consumer Secret<br>
+• <strong>Environment</strong> → Sandbox or Live<br>
+• <strong>Config</strong>:`,
+        code: `{\n  "shortcode": "174379",\n  "passkey": "bfb279f9aa9bdbcf...",\n  "callback_url": "https://ndimi.jeotamedia.com/api/payments/mpesa/callback/"\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Go live',
+        body: `Apply for a <strong>Go Live</strong> M-Pesa paybill or till number through Safaricom. Once approved, create a Live app on the developer portal, update the integration to <strong>Environment: Live</strong>, and replace the sandbox credentials with your live Consumer Key and Secret.`,
+      },
+      {
+        title: 'Handle the STK Push callback',
+        body: `Implement a Django view at the <code>callback_url</code> you configured. Safaricom will POST the payment result to this URL. Verify the callback signature and update the user's subscription or credit balance.`,
+        code: `# views.py (sketch)\nimport json\nfrom django.http import JsonResponse\nfrom django.views.decorators.csrf import csrf_exempt\n\n@csrf_exempt\ndef mpesa_callback(request):\n    data = json.loads(request.body)\n    result = data['Body']['stkCallback']['ResultCode']\n    if result == 0:\n        # payment successful\n        pass\n    return JsonResponse({'ResultCode': 0, 'ResultDesc': 'OK'})`,
+        lang: 'python',
+      },
+    ],
+    codeRead: `from system.models import Integration
+import requests, base64
+from datetime import datetime
+
+creds = Integration.credentials('mpesa')
+if creds:
+    consumer_key    = creds['api_key']
+    consumer_secret = creds['api_secret']
+    base_url = 'https://sandbox.safaricom.co.ke' if creds['environment'] == 'sandbox' else 'https://api.safaricom.co.ke'
+    
+    # Get OAuth token
+    auth = base64.b64encode(f"{consumer_key}:{consumer_secret}".encode()).decode()
+    token_resp = requests.get(f"{base_url}/oauth/v1/generate?grant_type=client_credentials", headers={"Authorization": f"Basic {auth}"})
+    access_token = token_resp.json()['access_token']`,
+    troubleshooting: [
+      { q: 'Invalid Access Token', a: 'Tokens expire every 1 hour. Always fetch a fresh token before each API call.' },
+      { q: 'STK Push not received on test phone', a: 'Use the exact test phone number <code>254708374149</code> in sandbox mode. Your real number won\'t receive sandbox STK pushes.' },
+      { q: 'Callback not fired', a: 'Your <code>callback_url</code> must be publicly reachable. Use <a href="https://ngrok.com" target="_blank">ngrok</a> during local development.' },
+    ],
+  },
+
+  stripe: {
+    name: 'Stripe',
+    icon: '💳',
+    cat: 'Payments',
+    badge: 'Optional',
+    color: '#635BFF',
+    docsUrl: 'https://stripe.com/docs',
+    dashboardUrl: 'https://dashboard.stripe.com/apikeys',
+    intro: 'Stripe handles international card payments and subscription billing for Ndimi — card on file, recurring plans, or one-time charges. Always start in test mode and switch to live keys only when ready.',
+    steps: [
+      {
+        title: 'Create a Stripe account',
+        body: `Go to <a href="https://stripe.com" target="_blank" rel="noopener">stripe.com</a>, click <strong>Start now</strong>, and complete identity verification. Choose your country as Kenya to get correct tax and payout settings.`,
+      },
+      {
+        title: 'Get your API keys',
+        body: `In the <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">Stripe dashboard</a>, toggle to <strong>Test mode</strong> and copy:<br>
+• <strong>Publishable key</strong>: <code>pk_test_…</code><br>
+• <strong>Secret key</strong>: <code>sk_test_…</code>`,
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>Stripe</em>:<br>
+• <strong>API key</strong> → Secret key (<code>sk_test_…</code> or <code>sk_live_…</code>)<br>
+• <strong>Config</strong>:`,
+        code: `{\n  "publishable_key": "pk_test_...",\n  "webhook_secret": "whsec_..."\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Set up a webhook endpoint',
+        body: `In the Stripe dashboard, go to <strong>Developers → Webhooks → Add endpoint</strong>. Set the URL to <code>https://ndimi.jeotamedia.com/api/payments/stripe/webhook/</code>. Select events: <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>customer.subscription.deleted</code>.<br>
+Copy the <strong>Signing secret</strong> (<code>whsec_…</code>) and paste it into Config above.`,
+      },
+      {
+        title: 'Test with Stripe test cards',
+        body: `Use Stripe's test card numbers in test mode:`,
+        code: `Visa (success):           4242 4242 4242 4242\nVisa (decline):           4000 0000 0000 0002\nRequires authentication:  4000 0025 0000 3155\nExpiry: any future date, CVC: any 3 digits`,
+        lang: 'text',
+      },
+      {
+        title: 'Switch to live mode',
+        body: `Once testing is complete, switch to <strong>Live mode</strong> in the Stripe dashboard, copy your live keys, and update the Ndimi integration accordingly. Also update the webhook endpoint to live mode.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+import stripe
+
+creds = Integration.credentials('stripe')
+if creds:
+    stripe.api_key = creds['api_key']
+    webhook_secret  = creds['config'].get('webhook_secret', '')
+    publishable_key = creds['config'].get('publishable_key', '')`,
+    troubleshooting: [
+      { q: 'Webhook signature verification failed', a: 'Make sure the <code>webhook_secret</code> in Config matches the signing secret shown on the specific webhook endpoint in the Stripe dashboard — not a general API key.' },
+      { q: 'Payments blocked in Kenya', a: 'Enable Kenyan cards under <strong>Dashboard → Settings → Payments → Payment methods</strong>. Some card types require explicit activation.' },
+    ],
+  },
+
+  africastalking: {
+    name: "Africa's Talking",
+    icon: '📡',
+    cat: 'Messaging',
+    badge: 'Optional',
+    color: '#E91E8C',
+    docsUrl: 'https://developers.africastalking.com/docs',
+    dashboardUrl: 'https://account.africastalking.com/apps/sandbox',
+    intro: "Africa's Talking provides SMS, USSD, and voice APIs purpose-built for African telecoms. Use it to send Ndimi notification SMSes to users or build USSD flows for feature-phone access.",
+    steps: [
+      {
+        title: "Create an Africa's Talking account",
+        body: `Go to <a href="https://africastalking.com" target="_blank" rel="noopener">africastalking.com</a> and click <strong>Create free account</strong>. Verify your email and phone number.`,
+      },
+      {
+        title: 'Access the sandbox',
+        body: `After login, go to the <a href="https://account.africastalking.com/apps/sandbox" target="_blank" rel="noopener">Sandbox</a>. The sandbox username is always <code>sandbox</code>. Click <strong>API Key</strong> to get your sandbox API key.`,
+      },
+      {
+        title: 'Add credentials to Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>Africa's Talking</em>:<br>
+• <strong>API key</strong> → your sandbox or live API key<br>
+• <strong>Config</strong>:`,
+        code: `{\n  "username": "sandbox",\n  "sender_id": "NDIMI",\n  "shortcode": "12345"\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Test SMS sending in sandbox',
+        body: `Use the <a href="https://developers.africastalking.com/test" target="_blank" rel="noopener">Africa's Talking Simulator</a> to receive SMS messages in the sandbox without a real SIM card. Enter a simulated phone number and fire your SMS.`,
+        code: `import africastalking
+
+africastalking.initialize('sandbox', api_key)
+sms = africastalking.SMS
+response = sms.send(
+    message="Your Ndimi dub is ready!",
+    recipients=["+254712345678"],
+    sender_id="NDIMI"
+)`,
+        lang: 'python',
+      },
+      {
+        title: 'Go live',
+        body: `Create a Live app in the Africa's Talking dashboard. You'll need to register a <strong>Sender ID</strong> (e.g. <em>NDIMI</em>) with Safaricom/Airtel — this takes 2–5 business days. Replace <code>sandbox</code> with your live username and update the API key.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+
+creds = Integration.credentials('africastalking')
+if creds:
+    username = creds['config'].get('username', 'sandbox')
+    api_key  = creds['api_key']
+    sender   = creds['config'].get('sender_id', 'NDIMI')`,
+    troubleshooting: [
+      { q: 'SMS not delivered in live mode', a: 'Ensure your Sender ID is approved. Unapproved sender IDs are automatically replaced with a numeric shortcode by some networks.' },
+      { q: 'Insufficient balance', a: 'Top up your Africa\'s Talking wallet in the dashboard. Sandbox sends are free.' },
+    ],
+  },
+
+  'afrivoices-ke': {
+    name: 'AfriVoices-KE',
+    icon: '🎵',
+    cat: 'Language Data',
+    badge: 'Core data',
+    color: '#D97706',
+    docsUrl: 'https://github.com/AfriVoices/AfriVoices-KE',
+    dashboardUrl: 'https://github.com/AfriVoices/AfriVoices-KE/releases',
+    intro: 'AfriVoices-KE is a community-recorded speech dataset in Kenyan languages — Gĩkũyũ, Dholuo, Kalenjin, Maa and others — with both scripted and spontaneous utterances. It is the training foundation for Ndimi\'s own speech-to-text, translation and TTS models via the <strong>Ndimi-models</strong> HTTP provider.',
+    steps: [
+      {
+        title: 'Download the dataset',
+        body: `The dataset is hosted on GitHub. Clone or download the latest release:`,
+        code: `git clone https://github.com/AfriVoices/AfriVoices-KE.git\n# or download a specific release tarball from GitHub Releases`,
+        lang: 'bash',
+      },
+      {
+        title: 'Understand the structure',
+        body: `Each language directory contains:<br>
+• <code>audio/</code> — WAV or MP3 recordings<br>
+• <code>transcripts.tsv</code> — tab-separated: <code>file_id</code>, <code>speaker_id</code>, <code>text</code>, <code>style</code> (scripted/spontaneous)<br>
+• <code>speakers.json</code> — age, gender, region metadata`,
+      },
+      {
+        title: 'Set up the AfriVoices integration in Ndimi',
+        body: `In <strong>Settings → Integrations &amp; API keys</strong>, find <em>AfriVoices-KE</em>:<br>
+• <strong>Base URL</strong> → URL of your local dataset API or data-access server<br>
+• <strong>Config</strong>:`,
+        code: `{\n  "dataset_path": "/data/afrivoices-ke",\n  "languages": ["ki", "luo", "kln", "mas"]\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Train Ndimi models',
+        body: `See <code>ml/</code> in the project root for training scripts. The Ndimi-models provider (<code>dubbing/providers/custom.py</code>) is a plain HTTP contract — point the <code>ndimi-models</code> integration at your trained model server:`,
+        code: `{\n  "base_url": "http://localhost:8001",\n  "languages": ["ki", "luo", "kln", "mas"]\n}`,
+        lang: 'json',
+      },
+      {
+        title: 'Consent and attribution',
+        body: `AfriVoices-KE recordings are made with speakers' consent for model training. Any models trained on this data must attribute AfriVoices-KE and comply with the dataset licence. Contact the AfriVoices team before commercial deployment.`,
+      },
+    ],
+    codeRead: `from system.models import Integration
+
+creds = Integration.credentials('afrivoices-ke')
+if creds:
+    dataset_path = creds['config'].get('dataset_path', '')
+    supported    = creds['config'].get('languages', [])`,
+    troubleshooting: [
+      { q: 'Model server returns 404', a: 'Check that the Ndimi-models server is running and the <code>base_url</code> in the integration config matches exactly (including trailing slash).' },
+      { q: 'Missing audio files', a: 'Some releases distribute text only. Download the full audio archive from the GitHub Releases page separately.' },
+    ],
+  },
+
+  mongodb: {
+    name: 'MongoDB',
+    icon: '🍃',
+    cat: 'Infrastructure',
+    badge: 'Required',
+    color: '#47A248',
+    docsUrl: 'https://www.mongodb.com/docs/',
+    dashboardUrl: 'https://cloud.mongodb.com',
+    intro: 'MongoDB stores Ndimi\'s application documents — transcript segments, dub job events, speaker metadata and more. You can run it locally during development or use MongoDB Atlas (managed cloud) for production.',
+    steps: [
+      {
+        title: 'Local development setup',
+        body: `Install MongoDB Community Edition:`,
+        code: `# Windows (winget)\nwinget install MongoDB.Server\n\n# macOS\nbrew tap mongodb/brew\nbrew install mongodb-community\nbrew services start mongodb-community\n\n# Ubuntu\nsudo apt-get install -y mongodb`,
+        lang: 'bash',
+      },
+      {
+        title: 'Set MONGO_URI in .env',
+        body: `Open <code>.env</code> (copy from <code>.env.example</code> if you haven't yet):`,
+        code: `# Local\nMONGO_URI=mongodb://127.0.0.1:27017\nMONGO_DB_NAME=sauti_yetu\n\n# Atlas (replace with your connection string)\nMONGO_URI=mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority\nMONGO_DB_NAME=ndimi_prod`,
+        lang: 'bash',
+      },
+      {
+        title: 'MongoDB Atlas (production)',
+        body: `Go to <a href="https://cloud.mongodb.com" target="_blank" rel="noopener">cloud.mongodb.com</a> and sign up for a free M0 cluster (512 MB). In <strong>Network Access</strong>, add your server IP or <code>0.0.0.0/0</code> for dynamic IPs. In <strong>Database Access</strong>, create a user with <em>Read and write to any database</em>. Copy the connection string from <strong>Connect → Drivers</strong>.`,
+      },
+      {
+        title: 'Run migrations and start the server',
+        body: `MongoDB collections are created automatically on first write — no schema migration needed. Run Django migrations for the relational tables:`,
+        code: `python manage.py migrate\npython manage.py runserver`,
+        lang: 'bash',
+      },
+      {
+        title: 'Verify the connection',
+        body: `Call the health endpoint — it checks both Django and MongoDB:`,
+        code: `curl http://localhost:8000/api/health/\n# Expected:\n# {"status":"ok","mongodb":"ok"}`,
+        lang: 'bash',
+      },
+    ],
+    codeRead: `# In Django, MongoDB is accessed via the pymongo client set up in config/\n# The connection string comes from settings.MONGO_URI\n\nfrom django.conf import settings\nimport pymongo\n\nclient = pymongo.MongoClient(settings.MONGO_URI)\ndb = client[settings.MONGO_DB_NAME]`,
+    troubleshooting: [
+      { q: 'Connection refused on localhost', a: 'Start the MongoDB service: <code>net start MongoDB</code> (Windows) or <code>brew services start mongodb-community</code> (macOS).' },
+      { q: 'Atlas authentication failed', a: 'Ensure the username and password in the URI are URL-encoded (special characters like <code>@</code> must be <code>%40</code>). The easiest fix is to use only alphanumeric characters in the Atlas password.' },
+      { q: 'api/health/ shows mongodb: error', a: 'Check <code>MONGO_URI</code> in <code>.env</code> and that Atlas Network Access allows your server\'s IP.' },
+    ],
+  },
+
+  smtp: {
+    name: 'SMTP Email',
+    icon: '✉️',
+    cat: 'Infrastructure',
+    badge: 'Optional',
+    color: '#8B5CF6',
+    docsUrl: 'https://docs.djangoproject.com/en/stable/topics/email/',
+    dashboardUrl: 'https://myaccount.google.com/apppasswords',
+    intro: "Ndimi sends transactional emails for account management: <strong>email verification</strong>, <strong>password reset</strong>, <strong>security alerts</strong> (new device sign-in, password changed). Until SMTP is configured, all outbound emails are printed to the Django server console — links can be copied directly during development.",
+    steps: [
+      {
+        title: 'Choose an SMTP provider',
+        body: `Common choices:<br>
+• <strong>Gmail</strong> — free, 500 emails/day with an App Password<br>
+• <strong>Outlook / Microsoft 365</strong> — business email on your own domain<br>
+• <strong>SendGrid / Mailgun / Postmark</strong> — transactional email services (recommended for production, better deliverability)`,
+      },
+      {
+        title: 'Gmail: create an App Password',
+        body: `If you use Gmail, go to <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">myaccount.google.com/security</a>. Enable <strong>2-Step Verification</strong> if not already on. Then go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Passwords</a>, create one named <code>Ndimi</code>, and copy the 16-character password.`,
+        code: `Host:      smtp.gmail.com\nPort:      587\nSecurity:  STARTTLS\nUsername:  your.email@gmail.com\nPassword:  the 16-character app password`,
+        lang: 'text',
+      },
+      {
+        title: 'Configure SMTP in Ndimi',
+        body: `In <strong>Settings → Email (SMTP)</strong>:<br>
+• Enable SMTP (flip the toggle on)<br>
+• Fill in host, port, security, username, and password<br>
+• Set <strong>From address</strong> to <code>no-reply@jeotamedia.com</code><br>
+• Set <strong>From name</strong> to <code>Ndimi</code><br>
+• Click <strong>Save and send test email</strong> — Ndimi will send a test to your admin account's email.`,
+      },
+      {
+        title: 'SendGrid (production-grade)',
+        body: `SendGrid offers 100 free emails/day on the free plan with much better deliverability than Gmail for production. Create an API key at <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" rel="noopener">app.sendgrid.com</a> with <em>Mail Send</em> permission.`,
+        code: `Host:      smtp.sendgrid.net\nPort:      587\nSecurity:  STARTTLS\nUsername:  apikey\nPassword:  your-sendgrid-api-key`,
+        lang: 'text',
+      },
+      {
+        title: 'Require email verification (optional)',
+        body: `In <strong>Settings → System</strong>, enable <strong>Require email verification</strong>. New users will need to confirm their email before using the dubbing tool. Superusers are always exempt. Existing accounts are treated as already confirmed.`,
+      },
+    ],
+    codeRead: `# Email is sent through Django's email backend.\n# When SMTP is configured, EmailSettings.smtp_connection() builds the backend.\n# Example from system/email.py:\nfrom system.models import EmailSettings\nfrom django.core.mail import EmailMessage\n\nes = EmailSettings.load()\nif es.enabled:\n    connection = es.smtp_connection()\n    msg = EmailMessage(\n        subject='Your Ndimi dub is ready',\n        body='...',\n        from_email=es.formatted_from,\n        to=['user@example.com'],\n        connection=connection,\n    )\n    msg.send()`,
+    troubleshooting: [
+      { q: 'Test email not received', a: 'Check your spam folder. Also verify the <em>From address</em> domain matches the authenticated domain on your SMTP provider.' },
+      { q: 'SMTPAuthenticationError with Gmail', a: 'You must use an App Password (not your regular Gmail password). Ensure 2-Step Verification is on first.' },
+      { q: 'Emails still printing to console', a: 'The <em>Enabled</em> toggle must be on in Email (SMTP) settings. Saving the form is not enough if the toggle is off.' },
+    ],
+  },
+};
+
+/* ================================================================
+   Build guide HTML and open in new tab
+   ================================================================ */
+function buildGuideHTML(slug) {
+  const g = GUIDES[slug];
+  if (!g) return null;
+
+  const stepsHTML = g.steps.map((s, i) => `
+    <div class="step" id="step-${i+1}">
+      <div class="step-num">${i + 1}</div>
+      <div class="step-body">
+        <h3 class="step-title">${s.title}</h3>
+        <div class="step-content">${s.body}</div>
+        ${s.code ? `<pre class="code-block"><button class="copy-btn" onclick="copyCode(this)" title="Copy">Copy</button><code class="lang-${s.lang||'bash'}">${s.code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>` : ''}
+      </div>
+    </div>`).join('');
+
+  const faqHTML = g.troubleshooting ? g.troubleshooting.map(faq => `
+    <details class="faq">
+      <summary>${faq.q}</summary>
+      <p>${faq.a}</p>
+    </details>`).join('') : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${g.name} — Ndimi Integration Guide</title>
+<meta name="description" content="Step-by-step guide to connect ${g.name} to the Ndimi dubbing platform.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--canvas:#EDEFEA;--surface:#FFFFFF;--ink:#15171C;--muted:#5E636B;--line:#D9DCD4;--brand:#0B6E66;--brand-soft:#D7ECE8;--brand-ink:#FFFFFF;--accent:#E9A21B;--accent-soft:#FBEFD2;--display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Figtree","Segoe UI",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;--hi:${g.color};}
+@media(prefers-color-scheme:dark){:root{--canvas:#101312;--surface:#181C1B;--ink:#ECEEEA;--muted:#8A9090;--line:#2A302E;--brand:#3FB7A9;--brand-soft:#173532;--brand-ink:#0C1211;--accent:#F2B745;--accent-soft:#3A2E14;}}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--canvas);color:var(--ink);font:400 16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--brand)}
+a:hover{text-decoration:none}
+code{font-family:var(--mono);font-size:.875em;background:var(--canvas);padding:2px 6px;border-radius:5px;border:1px solid var(--line)}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:220px 1fr;max-width:1100px;margin:0 auto;gap:0;min-height:100vh}
+@media(max-width:860px){.layout{grid-template-columns:1fr}.toc{display:none}}
+
+/* Sidebar */
+.toc{padding:28px 20px;background:var(--surface);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow-y:auto;align-self:start}
+.toc-back{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;margin-bottom:22px;padding:8px 10px;border-radius:8px;transition:color .12s,background .12s}
+.toc-back:hover{color:var(--ink);background:var(--canvas)}
+.toc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;padding:0 10px}
+.toc a{display:block;padding:7px 10px;font-size:14px;color:var(--muted);text-decoration:none;border-radius:7px;transition:all .12s}
+.toc a:hover{color:var(--ink);background:var(--canvas)}
+.toc a.active{background:var(--brand-soft);color:var(--ink);font-weight:600}
+.toc-divider{height:1px;background:var(--line);margin:12px 0}
+
+/* Main content */
+.content{padding:36px clamp(18px,4vw,56px) 80px}
+
+/* Hero strip */
+.guide-hero{background:linear-gradient(135deg,var(--hi),color-mix(in srgb,var(--hi) 60%,#000));border-radius:16px;padding:32px;color:#fff;margin-bottom:36px;position:relative;overflow:hidden}
+.guide-hero::after{content:'${g.icon}';position:absolute;right:24px;top:50%;transform:translateY(-50%);font-size:72px;opacity:.18;line-height:1}
+.guide-cat{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.75;margin-bottom:10px}
+.guide-hero h1{font:700 clamp(26px,4vw,38px)/1.1 var(--display);letter-spacing:-.02em;margin-bottom:12px}
+.guide-hero p{opacity:.88;font-size:15px;max-width:56ch;line-height:1.6}
+.hero-links{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.hero-links a{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;transition:background .15s}
+.hero-links a:hover{background:rgba(255,255,255,.28)}
+
+/* Steps */
+.steps-section h2{font:700 22px/1.2 var(--display);letter-spacing:-.01em;margin-bottom:20px}
+.step{display:grid;grid-template-columns:40px 1fr;gap:12px;margin-bottom:32px;scroll-margin-top:20px}
+.step-num{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--hi),color-mix(in srgb,var(--hi) 70%,#000));color:#fff;display:grid;place-items:center;font:700 16px var(--display);flex:none}
+.step-body{padding-top:8px}
+.step-title{font:700 18px/1.25 var(--display);margin-bottom:10px}
+.step-content{font-size:15px;color:var(--ink);line-height:1.65}
+.step-content p{margin-bottom:8px}
+.step-content strong{font-weight:600}
+
+/* Code block */
+.code-block{position:relative;background:var(--ink);color:#d4f4ee;font:13px/1.6 var(--mono);border-radius:12px;padding:18px 20px 18px;margin:12px 0;overflow-x:auto;white-space:pre}
+@media(prefers-color-scheme:dark){.code-block{background:#0e1614;color:#b8f0e9;border:1px solid var(--line)}}
+.copy-btn{position:absolute;top:10px;right:10px;font:600 12px var(--body);padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;transition:background .12s}
+.copy-btn:hover{background:rgba(255,255,255,.25)}
+.copy-btn.copied{background:var(--brand)}
+.code-block code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* Python code read-in */
+.code-section{margin-top:36px;padding-top:28px;border-top:1px solid var(--line)}
+.code-section h2{font:700 20px/1.2 var(--display);margin-bottom:8px}
+.code-section .sub{font-size:14px;color:var(--muted);margin-bottom:14px}
+
+/* Troubleshooting */
+.faq-section{margin-top:36px;padding-top:28px;border-top:1px solid var(--line)}
+.faq-section h2{font:700 20px/1.2 var(--display);margin-bottom:14px}
+.faq{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.faq summary{padding:14px 18px;font-weight:600;font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'▾';color:var(--muted);transition:transform .2s;flex:none}
+.faq[open] summary::after{transform:rotate(180deg)}
+.faq summary:hover{background:var(--canvas)}
+.faq p{padding:0 18px 16px;font-size:14px;color:var(--muted);line-height:1.6}
+
+/* Sticky code bar */
+.slug-bar{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:28px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.slug-bar code{font-family:var(--mono);font-size:13px;color:var(--brand);background:var(--brand-soft);padding:2px 8px;border-radius:6px;border:none}
+.slug-bar .note{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <a class="toc-back" href="javascript:window.close()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      All integrations
+    </a>
+    <div class="toc-label">On this page</div>
+    <a href="#intro">Overview</a>
+    <a href="#steps">Setup steps</a>
+    ${g.steps.map((s,i) => `<a href="#step-${i+1}" style="padding-left:20px;font-size:13px">${i+1}. ${s.title}</a>`).join('')}
+    <div class="toc-divider"></div>
+    <a href="#code">Reading credentials</a>
+    ${g.troubleshooting ? '<a href="#faq">Troubleshooting</a>' : ''}
+    <div class="toc-divider"></div>
+    ${g.docsUrl ? `<a href="${g.docsUrl}" target="_blank" rel="noopener">Official docs ↗</a>` : ''}
+    ${g.dashboardUrl ? `<a href="${g.dashboardUrl}" target="_blank" rel="noopener">Dashboard ↗</a>` : ''}
+  </nav>
+
+  <main class="content">
+    <div class="guide-hero" id="intro">
+      <div class="guide-cat">${g.cat}</div>
+      <h1>${g.icon} ${g.name}</h1>
+      <p>${g.intro}</p>
+      <div class="hero-links">
+        ${g.docsUrl ? `<a href="${g.docsUrl}" target="_blank" rel="noopener">📄 Official docs</a>` : ''}
+        ${g.dashboardUrl ? `<a href="${g.dashboardUrl}" target="_blank" rel="noopener">⚙️ Dashboard</a>` : ''}
+      </div>
+    </div>
+
+    <div class="slug-bar">
+      <span class="note">Read credentials in app code with:</span>
+      <code>Integration.credentials('${slug}')</code>
+    </div>
+
+    <section class="steps-section" id="steps">
+      <h2>Setup steps</h2>
+      ${stepsHTML}
+    </section>
+
+    <section class="code-section" id="code">
+      <h2>Reading credentials in Python</h2>
+      <p class="sub">Use <code>Integration.credentials('${slug}')</code> anywhere in Django app code. Returns <code>None</code> if the integration is disabled.</p>
+      <pre class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${g.codeRead.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>
+    </section>
+
+    ${g.troubleshooting ? `<section class="faq-section" id="faq">
+      <h2>Troubleshooting</h2>
+      ${faqHTML}
+    </section>` : ''}
+  </main>
+</div>
+
+<script>
+function copyCode(btn){
+  const code = btn.parentElement.querySelector('code');
+  navigator.clipboard.writeText(code.innerText).then(()=>{
+    btn.textContent='Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},1800);
+  });
+}
+
+// Active TOC link on scroll
+const tocLinks = document.querySelectorAll('.toc a[href^="#"]');
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      tocLinks.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector('.toc a[href="#'+e.target.id+'"]');
+      if(link) link.classList.add('active');
+    }
+  });
+},{rootMargin:'-20% 0px -70% 0px'});
+document.querySelectorAll('[id]').forEach(el=>observer.observe(el));
+<\/script>
+</body>
+</html>`;
+}
+
+/* ---- Attach click handlers ---- */
+cards.forEach(card => {
+  const slug = card.dataset.slug;
+  function openGuide() {
+    const html = buildGuideHTML(slug);
+    if (!html) { alert('Guide not found for: ' + slug); return; }
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    // Revoke after the tab has loaded
+    if (win) {
+      win.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    }
+  }
+  card.addEventListener('click', openGuide);
+  card.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGuide(); }
+  });
+});
+
+})();
+</script>
+</body>
+</html>
