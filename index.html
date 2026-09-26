@@ -1325,7 +1325,7 @@ const DOCS_INTEGRATIONS=[
       {t:'Set up a webhook',b:'In the Stripe dashboard → <strong>Developers → Webhooks → Add endpoint</strong>. URL: <code>https://ndimi.jeotamedia.co.ke/api/payments/stripe/webhook/</code>. Select events: <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>customer.subscription.deleted</code>. Copy the Signing secret into Config.'},
       {t:'Test with Stripe test cards',b:'',code:'Visa (success):           4242 4242 4242 4242\nVisa (decline):           4000 0000 0000 0002\nRequires authentication:  4000 0025 0000 3155\nExpiry: any future date, CVC: any 3 digits'},
     ],
-    code:'from system.models import Integration\nimport stripe\n\ncreds = Integration.credentials(\'stripe\')\nif creds:\n    stripe.api_key = creds[\'api_key\']\n    webhook_secret  = creds[\'config\'].get(\'webhook_secret\', \'\')\n    publishable_key = creds[\'config\'].get(\'publishable_key\', \'\'')',
+    code:'from system.models import Integration\nimport stripe\n\ncreds = Integration.credentials(\'stripe\')\nif creds:\n    stripe.api_key = creds[\'api_key\']\n    webhook_secret  = creds[\'config\'].get(\'webhook_secret\', \'\')\n    publishable_key = creds[\'config\'].get(\'publishable_key\', \'\')',
     faq:[{q:'Webhook signature verification failed',a:'Make sure the <code>webhook_secret</code> in Config matches the signing secret for that specific endpoint.'},{q:'Payments blocked in Kenya',a:'Enable Kenyan cards under <strong>Dashboard → Settings → Payments → Payment methods</strong>.'}]
   },
   {slug:'africastalking',icon:'📡',cat:'messaging',name:"Africa's Talking",sub:'SMS · USSD · Voice — Africa',badge:'optional',desc:'African-first messaging infrastructure for SMS notifications, USSD flows and voice calls. Sandbox username is always <code>sandbox</code>.',tags:['SMS','USSD','Sandbox','Kenya'],color:'#E91E8C',docsUrl:'https://developers.africastalking.com/docs',dashUrl:'https://account.africastalking.com/apps/sandbox',
@@ -1469,19 +1469,31 @@ function openGuide(idx){
               <div class="gstep-body">
                 <div class="gstep-title">${e(s.t)}</div>
                 <div class="gstep-content">${s.b}</div>
-                ${s.code?`<div class="gcode"><button class="gcopy" onclick="(function(btn){navigator.clipboard.writeText(btn.parentElement.querySelector('pre').innerText).then(()=>{btn.textContent='Copied!';btn.classList.add('done');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('done');},1800)});})(this)">Copy</button><pre>${e(s.code)}</pre></div>`:''}
+                ${s.code?`<div class="gcode"><button class="gcopy" data-copy>Copy</button><pre>${e(s.code)}</pre></div>`:''}
               </div>
             </div>`).join('')}
         </div>
         <div class="guide-code-section">
           <h4>Reading credentials in Python</h4>
           <p class="note">Returns <code>None</code> if the integration is disabled.</p>
-          <div class="gcode"><button class="gcopy" onclick="(function(btn){navigator.clipboard.writeText(btn.parentElement.querySelector('pre').innerText).then(()=>{btn.textContent='Copied!';btn.classList.add('done');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('done');},1800)});})(this)">Copy</button><pre>${e(g.code)}</pre></div>
+          <div class="gcode"><button class="gcopy" data-copy>Copy</button><pre>${e(g.code)}</pre></div>
         </div>
         ${g.faq&&g.faq.length?`<div class="guide-faq"><h4>Troubleshooting</h4>${g.faq.map(f=>`<details class="gfaq"><summary>${e(f.q)}</summary><p>${f.a}</p></details>`).join('')}</div>`:''}
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  /* copy buttons — delegated, no inline handlers */
+  overlay.addEventListener('click',function(ev){
+    const btn=ev.target.closest('[data-copy]');
+    if(!btn)return;
+    const pre=btn.parentElement.querySelector('pre');
+    if(!pre)return;
+    navigator.clipboard.writeText(pre.innerText).then(function(){
+      btn.textContent='Copied!';
+      btn.classList.add('done');
+      setTimeout(function(){btn.textContent='Copy';btn.classList.remove('done');},1800);
+    }).catch(function(){});
+  });
   overlay.querySelector('#guideClose').onclick=()=>overlay.remove();
   overlay.onclick=ev=>{if(ev.target===overlay)overlay.remove();};
   document.addEventListener('keydown',function esc(ev){if(ev.key==='Escape'){overlay.remove();document.removeEventListener('keydown',esc);}});
