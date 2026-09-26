@@ -731,9 +731,9 @@ function fmt(s){if(!isFinite(s))s=0;const m=Math.floor(s/60),x=Math.floor(s%60);
 function parseTs(t){const p=t.trim().split(':').map(Number);return p.length===2?p[0]*60+p[1]:(p[0]||0);}
 function langName(){return LANGS.find(l=>l.id===state.lang).name;}
 function show(view){['vNew','vProc','vGate','vStudio','vProj','vManage','vDocs'].forEach(v=>$(v).classList.toggle('hidden',v!==view));
-  const navFor={vProj:'navProj',vManage:'navManage'}[view]||'navNew';
-  ['navNew','navProj','navManage'].forEach(n=>{if(n===navFor)$(n).setAttribute('aria-current','page');else $(n).removeAttribute('aria-current');});
-  $('title').textContent={vNew:'Dub a video',vProc:'Working on it',vGate:'Dub a video',vStudio:$('projName').value||'Your dub',vProj:'Projects',vManage:'Settings'}[view];
+  const navFor={vProj:'navProj',vManage:'navManage',vDocs:'navDocs'}[view]||'navNew';
+  ['navNew','navProj','navManage','navDocs'].forEach(n=>{if(n===navFor)$(n).setAttribute('aria-current','page');else $(n).removeAttribute('aria-current');});
+  $('title').textContent={vNew:'Dub a video',vProc:'Working on it',vGate:'Dub a video',vStudio:$('projName').value||'Your dub',vProj:'Projects',vManage:'Settings',vDocs:'API Docs'}[view];
   if(view!=='vStudio'){try{$('vid').pause()}catch(e){}}
 }
 
@@ -1490,9 +1490,6 @@ function openGuide(idx){
 
 $('navDocs').onclick=()=>{
   show('vDocs');
-  $('navDocs').setAttribute('aria-current','page');
-  ['navNew','navProj','navManage'].forEach(n=>$(n).removeAttribute('aria-current'));
-  $('title').textContent='API Docs';
   initDocs();
 };
 })();
