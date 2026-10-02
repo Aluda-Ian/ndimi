@@ -1165,13 +1165,25 @@ function cellHtml(v){if(v===true)return '<span class="yes">Yes</span>';if(v===fa
 function renderList(d,q){
   let h=`<div class="mhead"><h2>${esc(d.title)}</h2><div class="row">`;
   if(d.searchable)h+=`<input class="msearch" id="mq" type="search" placeholder="Search…" value="${esc(q)}">`;
+  if(d.key==='integrations')h+='<button class="btn ghost sm" id="mongoTest">Test MongoDB</button>';
   if(d.can_add)h+='<button class="btn sm" id="madd">Add</button>';
   h+='</div></div><div class="msgs"></div>';
+  if(d.key==='integrations')h+='<p class="note">Checks the MongoDB connection configured on the live server.</p>';
   if(!d.rows.length){h+='<div class="mpanel"><div class="emptyscript">Nothing here yet.</div></div>';}
   else{h+='<div class="mwrap"><table class="mtable"><thead><tr>'+d.columns.map(c=>`<th>${esc(c.label)}</th>`).join('')+'</tr></thead><tbody>'+
     d.rows.map(r=>`<tr class="${d.openable?'open':''}" data-id="${esc(r.id)}">`+r.cells.map(cellHtml).map(c=>`<td>${c}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>';
     if(d.total>d.rows.length)h+=`<p class="note">Showing ${d.rows.length} of ${d.total}. Search to narrow the list.</p>`;}
   $('mbody').innerHTML=h;
+  if($('mongoTest'))$('mongoTest').onclick=async()=>{
+    const btn=$('mongoTest');btn.disabled=true;btn.textContent='Testing…';mMsgs([]);
+    try{
+      const response=await fetch('/api/health/',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});
+      let result={};try{result=await response.json();}catch(e){}
+      if(!response.ok||result.mongodb!=='connected')throw new Error('MongoDB is unavailable. Check MONGO_URI on the live server.');
+      mMsgs([{level:'success',text:'MongoDB connection is healthy.'}]);
+    }catch(e){mMsgs([{level:'error',text:e.message||'Could not test the MongoDB connection.'}]);}
+    finally{btn.disabled=false;btn.textContent='Test MongoDB';}
+  };
   if(d.openable)$('mbody').querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>mOpen(d.key,tr.dataset.id));
   if($('madd'))$('madd').onclick=()=>mOpen(d.key,null);
   if($('mq'))$('mq').addEventListener('keydown',e=>{if(e.key==='Enter')mGo(d.key,{q:e.target.value.trim()});});
