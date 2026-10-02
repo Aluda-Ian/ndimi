@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ndimi by Jeota Media · Dubbing prototype</title>
+<title>Ndimi by Jeota Media · Live test</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
@@ -539,7 +539,7 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
     <div class="top">
       <h1 id="title">Dub a video</h1>
       <div style="display:flex;gap:8px;align-items:center">
-        <span class="pill">Prototype</span>
+        <span class="pill">Live test</span>
         <button class="iconbtn hidden" id="openSetup" title="Demo setup (press P)" aria-label="Demo setup">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
@@ -748,19 +748,12 @@ let LANGS = [
   {id:'so', name:'Somali', note:''},
   {id:'luy', name:'Oluluhya (Luhya)', note:''}
 ];
-const STEPS = ['Importing video','Separating voices from music and sound','Transcribing English speech','Translating into {L}','Generating {L} voice matched to the speaker','Syncing the new voice to the picture'];
+/* Do not allow the offline prototype to masquerade as a live project. */
+let server = {mode:'connecting', user:null, canConfigure:false};
 
-/* server: 'server' when Django serves this page, 'local' for the static offline demo */
-let server = {mode:'local', user:null, canConfigure:true};
+let state = {tab:'link', lang:'ki', source:null, sourceName:'', origURL:null, dubURL:null, origYT:'', dubYT:'', origBlob:null, dubBlob:null, segs:[], track:'dub', peaks:{}};
 
-let state = {tab:'link', lang:'ki', source:null, sourceName:'', origURL:null, dubURL:null, origYT:'', dubYT:'', origBlob:null, dubBlob:null, segs:[], track:'dub', peaks:{}, projects:[]};
-
-/* ---------- storage ---------- */
-function openDB(){return new Promise((res,rej)=>{try{const r=indexedDB.open('sautiyetu',1);r.onupgradeneeded=()=>r.result.createObjectStore('media');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}catch(e){rej(e)}});}
-async function dbPut(k,v){try{const db=await openDB();await new Promise((res,rej)=>{const t=db.transaction('media','readwrite');t.objectStore('media').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});return true;}catch(e){return false}}
-async function dbGet(k){try{const db=await openDB();return await new Promise((res,rej)=>{const t=db.transaction('media','readonly');const r=t.objectStore('media').get(k);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error);});}catch(e){return null}}
-function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
-function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+/* ---------- API ---------- */
 function csrf(){const m=document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);return m?decodeURIComponent(m[1]):'';}
 async function api(url,opts={}){
   const o={credentials:'same-origin',...opts,headers:{'Accept':'application/json',...(opts.headers||{})}};
@@ -779,8 +772,6 @@ function uploadForm(url,form,onProgress){return new Promise((res,rej)=>{const x=
   x.onerror=()=>rej(new Error('Upload failed. Check your connection.'));x.send(form);});}
 function realMode(){return server.mode==='server'&&server.user&&server.user.can_dub;}
 document.querySelectorAll('.switch').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-checked',String(b.getAttribute('aria-checked')!=='true'))));
-function projKey(){return server.user?'sy_projects:'+server.user.username:'sy_projects';}
-
 /* ---------- helpers ---------- */
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.add('hidden'),2600);}
 function fmt(s){if(!isFinite(s))s=0;const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
@@ -823,22 +814,12 @@ function importLink(){const v=$('urlIn').value.trim();
   $('found').classList.remove('hidden');state.source='link';state.sourceName=v;checkReady();}
 
 /* ---------- processing ---------- */
-let timer=null;
 $('createBtn').onclick=()=>{startProc();};
 function startProc(){
-  const L=langName();const gate=!(LANGS.find(l=>l.id===state.lang)||{}).ok;
-  if(realMode()&&!gate){realDub();return;}
-  $('procTitle').textContent='Dubbing into '+L;$('procSub').textContent=$('projName').value;
-  const steps=STEPS.map(s=>s.replace(/\{L\}/g,L));const stopAt=gate?3:steps.length;
-  $('steps').innerHTML=steps.map(s=>`<li><span class="dot"></span>${s}</li>`).join('');
-  show('vProc');let i=0;const lis=[...$('steps').children];
-  const tick=()=>{lis.forEach((li,j)=>{li.className=j<i?'done':j===i?'run':'';});$('barFill').style.width=(i/steps.length*100)+'%';
-    if(i>=stopAt){finish(gate);return;}i++;timer=setTimeout(tick,i===1?1200:1900);};
-  tick();$('skip').onclick=()=>{clearTimeout(timer);i=stopAt;tick();};
+  if(server.mode!=='server'){toast('Live service unavailable. No project was created.');return;}
+  if(!realMode()){toast('Your account cannot create dubs yet. Ask an admin.');return;}
+  realDub();
 }
-function finish(gate){clearTimeout(timer);setTimeout(()=>{if(gate){show('vGate');}else{openStudio();}},500);}
-$('gateSw').onclick=()=>{const ok=LANGS.find(l=>l.ok);if(!ok){show('vNew');return;}state.lang=ok.id;renderLangs();startProc();};
-$('gateBack').onclick=()=>show('vNew');
 
 /* ---------- real dubbing jobs ---------- */
 let poll=null;
@@ -890,9 +871,13 @@ async function openJob(job){
   $('abOrig').textContent='Original';$('trkOrig').querySelector('span').textContent='Original';
   if(!(state.source==='file'&&state.userOrigBlob&&state.jobSourceFor===job.id)){
     state.source=null;state.userOrig=null;state.userOrigBlob=null;
+    if(state.origURL)URL.revokeObjectURL(state.origURL);
+    state.origURL=null;state.origBlob=null;
     if(job.outputs.source){const b=await fetchBlob(job.outputs.source);if(b)setOrig(b);}
   }
   const dubUrl=job.outputs.video||job.outputs.audio;
+  if(state.dubURL)URL.revokeObjectURL(state.dubURL);
+  state.dubURL=null;state.dubBlob=null;
   if(dubUrl){const b=await fetchBlob(dubUrl);if(b)setDub(b);}else{state.dubBlob=null;state.dubURL=null;}
   $('demoNote').classList.add('hidden');
   show('vStudio');setTrack(state.dubURL?'dub':'orig',true);renderLines();updateJobBar();
@@ -919,23 +904,6 @@ async function saveLine(s,text){
 /* ---------- studio ---------- */
 const vid=$('vid');
 function currentOrigURL(){return state.source==='file'&&state.userOrig?state.userOrig:state.origURL;}
-async function openStudio(){
-  state.job=null;updateJobBar();$('demoNote').classList.remove('hidden');
-  const name=$('projName').value.trim()||'Untitled dub';
-  if(server.mode==='server'){
-    if(!state.projects.some(p=>p.name===name)){
-      try{
-        const project=await createProject(name);
-        state.projects=[project,...state.projects.filter(p=>p.id!==project.id&&p.name!==project.name)];
-      }catch(e){toast(e.message);return;}
-    }
-  }else if(!state.projects.some(p=>p.name===name)){
-    state.projects.unshift({name,target_language:langName(),status:'created'});lsSet(projKey(),JSON.stringify(state.projects));
-  }
-  show('vStudio');setTrack(hasDub()?'dub':'orig',true);renderLines();
-  const ob=state.source==='file'&&state.userOrigBlob?state.userOrigBlob:state.origBlob;
-  computePeaks('orig',ob);computePeaks('dub',state.dubBlob);
-}
 /* One interface over the <video> element and the YouTube player */
 function ytId(u){const m=String(u||'').match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:'';}
 const P={mode:'video',yt:null,ytId:'',
@@ -1001,8 +969,8 @@ function activeLine(){const t=P.t;let a=-1;state.segs.forEach((s,i)=>{if(t>=s.t)
   [...$('lines').children].forEach((el,i)=>{const on=i===a;if(on&&!el.classList.contains('active')&&!P.paused)el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.toggle('active',on);});}
 vid.addEventListener('timeupdate',()=>{if(P.mode!=='video')return;$('clock').textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration);activeLine();});
 setInterval(()=>{if(P.mode==='yt'&&P.yt&&P.yt.getCurrentTime&&!$('vStudio').classList.contains('hidden')){$('clock').textContent=fmt(P.t)+' / '+fmt(P.d);activeLine();}},300);
-$('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&(j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'Export is switched off in this prototype');};
-$('shareBtn').onclick=()=>{const j=state.job;if(j&&realMode()&&j.outputs.subtitles){location.href=j.outputs.subtitles+'?download=1';}else toast('Review link copied for your team');};
+$('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&(j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'No export is available for this dub yet.');};
+$('shareBtn').onclick=()=>{const j=state.job;if(j&&realMode()&&j.outputs.subtitles){location.href=j.outputs.subtitles+'?download=1';}else toast('No subtitle export is available for this dub yet.');};
 
 /* ---------- waveforms ---------- */
 async function computePeaks(key,blob){
@@ -1011,8 +979,7 @@ async function computePeaks(key,blob){
       const ch=buf.getChannelData(0),step=Math.floor(ch.length/N),p=[];
       for(let i=0;i<N;i++){let m=0;for(let j=0;j<step;j+=8){const v=Math.abs(ch[i*step+j]);if(v>m)m=v;}p.push(m);}
       const mx=Math.max(...p)||1;state.peaks[key]=p.map(v=>v/mx);ctx.close&&ctx.close();drawWaves();return;}catch(e){}}
-  let seed=key==='orig'?7:13;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};
-  state.peaks[key]=Array.from({length:N},(_,i)=>0.25+0.6*rnd()*Math.abs(Math.sin(i/9)));drawWaves();
+  state.peaks[key]=[];drawWaves();
 }
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 function drawWaves(){[['orig','wOrig'],['dub','wDub']].forEach(([k,id])=>{
@@ -1029,7 +996,6 @@ window.addEventListener('resize',drawWaves);
 /* ---------- presenter setup ---------- */
 function parseSegs(txt){return txt.split('\n').map(l=>l.split('|').map(s=>s.trim())).filter(a=>a.length>=4&&a[0]).map(a=>({t:parseTs(a[0]),who:a[1],en:a[2],sw:a.slice(3).join(' | ')}));}
 function saveSegsText(){const txt=state.segs.map(s=>`${fmt(s.t)} | ${s.who} | ${s.en} | ${s.sw}`).join('\n');$('segs').value=txt;
-  if(server.mode==='local'){lsSet('sy_segs',txt);return;}
   if(!server.canConfigure)return; /* users can try edits; they aren't saved */
   clearTimeout(saveSegsText._t);saveSegsText._t=setTimeout(()=>{const fd=new FormData();fd.append('script',txt);
     postSetup(fd).then(()=>toast('Script saved for everyone')).catch(e=>toast(e.message));},600);}
@@ -1042,6 +1008,7 @@ function openSetup(){if(!server.canConfigure)return;$('setupStatus').textContent
 $('openSetup').onclick=openSetup;
 document.addEventListener('keydown',e=>{if((e.key==='p'||e.key==='P')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!document.activeElement.isContentEditable){e.preventDefault();openSetup();}});
 $('saveSetup').onclick=async e=>{e.preventDefault();const fo=$('fOrig').files[0],fd=$('fDub').files[0];
+  if(server.mode!=='server'){ $('setupStatus').textContent='Live service unavailable.';return; }
   const uo=$('uOrig').value.trim(),ud=$('uDub').value.trim();
   for(const [u,label] of [[uo,'original'],[ud,'dubbed']]){if(u&&!ytId(u)){$('setupStatus').textContent=`The ${label} link isn't a YouTube link. Paste one like https://youtu.be/abc123XYZ00.`;return;}}
   $('setupStatus').textContent=(fo||fd)&&server.mode==='server'?'Uploading…':'Saving…';
@@ -1051,8 +1018,6 @@ $('saveSetup').onclick=async e=>{e.preventDefault();const fo=$('fOrig').files[0]
     $('fOrig').value='';$('fDub').value='';
     if(fo)setOrig(fo);if(fd)setDub(fd);
     const st=(j&&j.setup)||{};state.origYT=st.original_youtube_id||'';state.dubYT=st.dubbed_youtube_id||'';}
-  else{if(fo){setOrig(fo);await dbPut('orig',fo);}if(fd){setDub(fd);await dbPut('dub',fd);}lsSet('sy_segs',$('segs').value);
-    lsSet('sy_uorig',uo);lsSet('sy_udub',ud);state.origYT=ytId(uo);state.dubYT=ytId(ud);}
   state.segs=parseSegs($('segs').value);
   $('setupStatus').textContent='Saved';setTimeout(()=>$('setup').close(),400);
   if(!$('vStudio').classList.contains('hidden')){setTrack(state.track==='dub'&&!hasDub()?'orig':state.track,true);renderLines();computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}};
@@ -1063,35 +1028,15 @@ function setDub(b){state.dubBlob=b;if(state.dubURL)URL.revokeObjectURL(state.dub
 /* ---------- projects ---------- */
 const STATUS_TEXT={queued:'Queued',running:'Working',review:'Ready for review',completed:'Done',failed:'Failed',cancelled:'Cancelled'};
 function renderProjects(){const b=$('projList');
-  if(realMode()){
-    if(!state.dubs||!state.dubs.length){b.textContent='No dubs yet. Start one from New dub.';return;}
-    b.innerHTML='';state.dubs.forEach(job=>{const r=document.createElement('button');r.className='lang';r.style.marginBottom='8px';r.style.width='100%';
-      r.innerHTML='<b></b><small></small>';r.querySelector('b').textContent=job.name;
-      const sm=r.querySelector('small');sm.textContent=langNameOf(job.target_language)+' · '+(STATUS_TEXT[job.status]||job.status)+(job.status==='running'?' '+job.progress+'%':'');
-      if(job.status==='completed')sm.className='ok';
-      r.onclick=async()=>{try{const d=await api(`/api/dubs/${job.id}/`);trackJob(d.dub);}catch(e){toast(e.message);}};b.appendChild(r);});
-    return;
-  }
-  if(!state.projects.length){b.textContent='No dubs yet. Start one from New dub.';return;}
-  b.innerHTML='';state.projects.forEach(project=>{const r=document.createElement('button');r.className='lang';r.style.marginBottom='8px';r.style.width='100%';
-    r.innerHTML='<b></b><small class="ok"></small>';r.querySelector('b').textContent=project.name;r.querySelector('small').textContent=project.target_language||'Kiswahili';r.onclick=()=>{$('projName').value=project.name;openStudio();};b.appendChild(r);});}
-async function loadProjects(){
-  if(server.mode!=='server')return;
-  const r=await fetch('/api/projects/',{credentials:'same-origin',headers:{'Accept':'application/json'}});
-  let data={};try{data=await r.json();}catch(e){}
-  if(r.status===401){location.href='/accounts/login/?next=/';return;}
-  if(!r.ok)throw new Error(data.error||'Could not load projects');
-  state.projects=Array.isArray(data.projects)?data.projects:[];
-}
-async function createProject(name){
-  const r=await fetch('/api/projects/',{method:'POST',credentials:'same-origin',headers:{'Accept':'application/json','Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({name,target_language:langName()})});
-  let data={};try{data=await r.json();}catch(e){}
-  if(r.status===401){location.href='/accounts/login/?next=/';throw new Error('Signed out');}
-  if(!r.ok)throw new Error(data.error||'Could not create project');
-  return data.project;
-}
+  if(!realMode()){b.textContent=server.mode==='server'?'Dubbing access is not enabled for this account.':'Live service unavailable.';return;}
+  if(!state.dubs||!state.dubs.length){b.textContent='No dubs yet. Start one from New dub.';return;}
+  b.innerHTML='';state.dubs.forEach(job=>{const r=document.createElement('button');r.className='lang';r.style.marginBottom='8px';r.style.width='100%';
+    r.innerHTML='<b></b><small></small>';r.querySelector('b').textContent=job.name;
+    const sm=r.querySelector('small');sm.textContent=langNameOf(job.target_language)+' · '+(STATUS_TEXT[job.status]||job.status)+(job.status==='running'?' '+job.progress+'%':'');
+    if(job.status==='completed')sm.className='ok';
+    r.onclick=async()=>{try{const d=await api(`/api/dubs/${job.id}/`);trackJob(d.dub);}catch(e){toast(e.message);}};b.appendChild(r);});}
 $('navProj').onclick=async()=>{clearTimeout(poll);
-  try{if(realMode()){state.dubs=(await api('/api/dubs/')).dubs;}else if(server.mode==='server'){await loadProjects();}}catch(e){toast(e.message);return;}
+  try{if(realMode())state.dubs=(await api('/api/dubs/')).dubs;}catch(e){toast(e.message);return;}
   renderProjects();show('vProj');};
 $('navNew').onclick=()=>{clearTimeout(poll);show('vNew');try{history.replaceState(null,'','/');}catch(e){}};
 
@@ -1631,6 +1576,7 @@ function applyUser(u){
 }
 (async function init(){
   const cfg=await loadConfig();if(cfg==='redirect')return;
+  if(!cfg){$('createBtn').disabled=true;$('title').textContent='Live service unavailable';toast('The live app could not connect. No offline simulation is enabled.');return;}
   if(cfg){
     server={mode:'server',user:cfg.user,canConfigure:!!cfg.user.can_configure_demo};applyUser(cfg.user);
     if(Array.isArray(cfg.languages)&&cfg.languages.length){LANGS=cfg.languages;if(!LANGS.some(l=>l.id===state.lang))state.lang=LANGS[0].id;}
@@ -1642,19 +1588,11 @@ function applyUser(u){
   if(location.hash==='#projects')$('navProj').click();
   if(realMode()){$('reviewRow').classList.remove('hidden');$('reviewSw').setAttribute('aria-checked',String(cfg.dubbing?cfg.dubbing.review_by_default:true));}
   renderLangs();setTab('link');
-  try{state.projects=JSON.parse(lsGet(projKey())||'[]')}catch(e){state.projects=[]}
-  if(server.mode==='server'){
-    try{await loadProjects();}catch(e){toast(e.message);}
-    const s=cfg.setup||{};if(s.script){$('segs').value=s.script;state.segs=parseSegs(s.script);}
-    $('uOrig').value=s.original_url||'';$('uDub').value=s.dubbed_url||'';state.origYT=s.original_youtube_id||'';state.dubYT=s.dubbed_youtube_id||'';
-    const [o,d]=await Promise.all([s.original_video&&!state.origYT?fetchBlob(s.original_video):null,s.dubbed_video&&!state.dubYT?fetchBlob(s.dubbed_video):null]);
-    if(o)setOrig(o);if(d)setDub(d);
-    if(!$('vStudio').classList.contains('hidden')){setTrack(state.track,true);computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}
-  }else{
-    const txt=lsGet('sy_segs');if(txt){$('segs').value=txt;state.segs=parseSegs(txt);}
-    const uo=lsGet('sy_uorig')||'',ud=lsGet('sy_udub')||'';$('uOrig').value=uo;$('uDub').value=ud;state.origYT=ytId(uo);state.dubYT=ytId(ud);
-    const o=await dbGet('orig'),d=await dbGet('dub');if(o)setOrig(o);if(d)setDub(d);
-  }
+  const s=cfg.setup||{};if(s.script){$('segs').value=s.script;state.segs=parseSegs(s.script);}
+  $('uOrig').value=s.original_url||'';$('uDub').value=s.dubbed_url||'';state.origYT=s.original_youtube_id||'';state.dubYT=s.dubbed_youtube_id||'';
+  const [o,d]=await Promise.all([s.original_video&&!state.origYT?fetchBlob(s.original_video):null,s.dubbed_video&&!state.dubYT?fetchBlob(s.dubbed_video):null]);
+  if(o)setOrig(o);if(d)setDub(d);
+  if(!$('vStudio').classList.contains('hidden')){setTrack(state.track,true);computePeaks('orig',state.origBlob);computePeaks('dub',state.dubBlob);}
 })();
 })();
 </script>

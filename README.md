@@ -1,6 +1,6 @@
-# Ndimi by Jeota Media: dubbing prototype and Django backend
+# Ndimi by Jeota Media: live dubbing test
 
-The existing `index.html` remains the browser prototype. The folder now also contains a Django API backend for the production application foundation.
+The app requires its Django backend for sign-in, project creation, dubbing jobs, and saved outputs. It no longer creates browser-only projects or simulates processing when the backend is unavailable. Use `DATABASE_URL` for a persistent production relational database; without it, Django uses local SQLite. MongoDB is configured separately with `MONGO_URI`.
 
 ## Django backend setup
 
@@ -158,27 +158,19 @@ All endpoints except health need a signed-in session (`401` otherwise) and *Can 
 
 Uploaded videos are stored in the `media/` folder and served only to signed-in users.
 
-Start MongoDB locally or set `MONGO_URI` in `.env` to a MongoDB Atlas connection string. MongoDB stores application documents; uploaded media will be added later using object storage such as S3 or Cloudflare R2.
+Start MongoDB locally or set `MONGO_URI` in `.env` to a MongoDB Atlas connection string. For production, set `DATABASE_URL` to a persistent Postgres database as well; dub jobs, segments, users, and settings use Django's relational database. Uploaded media currently uses `MEDIA_ROOT`, so production deployments need persistent shared media storage for files and generated outputs.
 
-## Upload to a subdomain (cPanel or similar hosting)
+## Deployment
 
-1. In your hosting panel, create the subdomain (e.g. `ndimi.jeotamedia.com`). The panel will create a folder for it, often `public_html/ndimi`.
-2. Open File Manager, go to that folder, and upload `index.html`.
-3. Visit the subdomain in your browser. Make sure SSL/HTTPS is enabled for it (AutoSSL or Let's Encrypt in cPanel).
-
-## Alternative: Netlify (free, about 2 minutes)
-
-1. Go to app.netlify.com/drop and drag this whole folder onto the page.
-2. In Site settings > Domain management, add your custom subdomain.
-3. At your DNS provider, add the CNAME record Netlify shows you.
+Deploy the Django application and keep a `python manage.py run_dub_worker` process running. Static-only hosting of `index.html` is not supported: without `/api/config/`, the app disables project creation rather than falling back to a simulated demo. Use persistent relational storage (`DATABASE_URL`) and persistent media storage for production.
 
 ## Using the demo
 
 - Sign in with *Can change demo setup* and press **P** (or the gear icon) to open demo setup.
 - Load the original English MP4, the dubbed Kiswahili MP4, and paste the script:
   `0:00 | Narrator | English line | Kiswahili line`
-- Press Save. The videos upload to the server, and every signed-in user sees them.
-- If you open `index.html` without the Django server (for example on Netlify), it falls back to the old offline demo: no sign-in, and videos are saved in that browser only.
+- Press Save. The videos upload to the server for preview/reference setup. They are not substituted for media in live dubbing jobs.
+- Live Projects lists persisted dubbing jobs. Each job opens its own stored source and generated output; if those files are unavailable, the app does not substitute the demo videos.
 
 ## Changing brand colours
 
@@ -188,4 +180,4 @@ Open `index.html` and edit the variables at the top of the `<style>` block
 ## Notes
 
 - Fonts load from Google Fonts. Without internet the page falls back to system fonts and still works.
-- "Export video" and "Share for review" are placeholders in this prototype.
+- Exports become available when the dubbing job has generated the corresponding files.
