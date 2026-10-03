@@ -89,8 +89,12 @@ main{padding:28px clamp(18px,4vw,48px) 60px;min-width:0}
 .drop video{width:100%;max-height:300px;border-radius:8px;background:#000}
 .urlrow{display:flex;gap:10px}
 .urlrow input{flex:1;min-width:0;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--canvas)}
-.found{margin-top:14px;display:flex;gap:14px;align-items:center;padding:12px;border-radius:10px;background:var(--canvas)}
-.thumb{width:112px;aspect-ratio:16/9;border-radius:6px;background:linear-gradient(135deg,var(--brand),var(--ink));display:grid;place-items:center;color:#fff;flex:none}
+.found{margin-top:14px;display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:var(--canvas)}
+.thumb{position:relative;width:100%;aspect-ratio:16/9;border-radius:6px;background:#000;overflow:hidden;flex:none}
+.thumb-play{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:pointer}
+.thumb-play img{width:100%;height:100%;object-fit:cover}
+.thumb-play svg{position:absolute;left:50%;top:50%;width:48px;height:48px;padding:11px;transform:translate(-50%,-50%);border-radius:50%;background:rgba(0,0,0,.68);color:#fff}
+.thumb iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .found b{display:block}
 .found span{font-size:14px;color:var(--muted)}
 
@@ -573,8 +577,13 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
             </div>
             <p class="note">Works with YouTube, Facebook, TikTok and direct video links.</p>
             <div class="found hidden" id="found">
-              <div class="thumb"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-              <div><b id="foundTitle">Jeota Media campaign</b><span id="foundMeta">YouTube · English detected</span></div>
+              <div class="thumb" id="foundThumb">
+                <button class="thumb-play" id="previewPlay" type="button" aria-label="Play YouTube preview">
+                  <img id="previewImage" alt="">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              </div>
+              <div><b id="foundTitle"></b><span id="foundMeta"></span></div>
             </div>
           </div>
         </div>
@@ -808,10 +817,35 @@ function useFile(f){state.source='file';state.sourceName=f.name;state.userOrig=U
   $('projName').value=f.name.replace(/\.[^.]+$/,'');checkReady();}
 $('fetchBtn').onclick=importLink;
 $('urlIn').addEventListener('keydown',e=>{if(e.key==='Enter')importLink();});
+const previewPlay=$('previewPlay');
+let importSequence=0;
+previewPlay.onclick=()=>{
+  const videoId=ytId(state.sourceName);
+  if(!videoId)return;
+  const frame=document.createElement('iframe');
+  frame.src=`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`;
+  frame.title=($('foundTitle').textContent||'YouTube video')+' preview';
+  frame.allow='autoplay; encrypted-media; picture-in-picture; web-share';
+  frame.allowFullscreen=true;
+  $('foundThumb').replaceChildren(frame);
+};
 function importLink(){const v=$('urlIn').value.trim();
   if(!/^https?:\/\/\S+\.\S+/.test(v)){toast('Paste a full link starting with https://');return;}
-  const yt=/youtu\.?be/.test(v);$('foundMeta').textContent=(yt?'YouTube':'Web video')+' · English detected'+(state.dur?' · '+fmt(state.dur):'');
-  $('found').classList.remove('hidden');state.source='link';state.sourceName=v;checkReady();}
+  const sequence=++importSequence,videoId=ytId(v);
+  state.source='link';state.sourceName=v;checkReady();
+  $('found').classList.remove('hidden');$('foundThumb').replaceChildren(previewPlay);
+  $('foundTitle').textContent=videoId?'Loading video title…':new URL(v).hostname;
+  $('foundMeta').textContent=videoId?'YouTube video':'Preview is not available for this link';
+  $('foundThumb').classList.toggle('hidden',!videoId);previewPlay.hidden=false;
+  if(!videoId)return;
+  const image=$('previewImage');
+  image.src=`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  image.onerror=()=>{image.onerror=null;image.src=`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;};
+  fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(v)}&format=json`)
+    .then(response=>{if(!response.ok)throw new Error('Video metadata is unavailable.');return response.json();})
+    .then(metadata=>{if(sequence!==importSequence)return;$('foundTitle').textContent=metadata.title||`YouTube video ${videoId}`;
+      $('foundMeta').textContent=metadata.author_name?`YouTube video by ${metadata.author_name}`:'YouTube video';})
+    .catch(()=>{if(sequence===importSequence)$('foundTitle').textContent=`YouTube video ${videoId}`;});}
 
 /* ---------- processing ---------- */
 $('createBtn').onclick=()=>{startProc();};
