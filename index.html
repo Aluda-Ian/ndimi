@@ -1076,6 +1076,7 @@ $('navNew').onclick=()=>{clearTimeout(poll);show('vNew');try{history.replaceStat
 
 /* ---------- Settings (admins): forms come from the server's admin configuration ---------- */
 const M={sections:[],current:null,overview:null};
+let overviewTimer=null,overviewRefreshing=false;
 const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function mMsgs(list){const box=$('mbody').querySelector('.msgs');if(!box)return;box.innerHTML=(list||[]).map(m=>`<div class="mmsg ${esc(m.level)}">${esc(m.text)}</div>`).join('');if(list&&list.length)box.scrollIntoView({block:'nearest'});}
 async function openManage(key,guide){
@@ -1103,9 +1104,15 @@ async function mGo(key,opts={}){
   catch(e){body.innerHTML=`<div class="mmsg error">${esc(e.message)}</div>`;}
 }
 function renderOverview(){
-  const o=M.overview||{},d=o.dubs,u=o.users,it=o.integrations;let h='<div class="mhead"><h2>Overview</h2></div>';
+  const o=M.overview||{},d=o.dubs,u=o.users,it=o.integrations;let h='<div class="mhead"><h2>Overview</h2><div class="row"><button class="btn ghost sm" id="overviewRefresh">Refresh status</button></div></div>';
   if(o.site&&o.site.maintenance)h+='<div class="malert bad"><b>Maintenance mode is on.</b> Users can\'t use the app. Turn it off under System.</div>';
-  if(d&&d.worker_idle)h+='<div class="malert"><b>Dubs are waiting but nothing is processing.</b> Start the worker: <code>python manage.py run_dub_worker</code></div>';
+  if(d){
+    const worker=d.worker;
+    if(!worker||!worker.online)h+='<div class="malert bad"><b>Dub worker offline.</b> No worker heartbeat in the last 45 seconds. Start <code>python manage.py run_dub_worker</code> on the worker host.</div>';
+    else if(!worker.ffmpeg_available)h+='<div class="malert bad"><b>Dub worker online, but FFmpeg is missing.</b> Install FFmpeg on the worker host and restart it. Ndimi pipeline jobs need FFmpeg.</div>';
+    else h+=`<div class="malert"><b>Dub worker online.</b> FFmpeg is ready. Last check-in ${new Date(worker.last_seen).toLocaleTimeString()}.</div>`;
+    if(d.worker_idle&&worker&&worker.online&&worker.ffmpeg_available)h+='<div class="malert"><b>Jobs are queued but not being claimed.</b> Check the worker output and provider settings.</div>';
+  }
   if(o.email&&!o.email.enabled)h+='<div class="malert">Email is off, so password resets and confirmations are only printed in the server console. Set it up under Email (SMTP).</div>';
   const card=(k,v,s,cls,go)=>`<button class="mcard ${cls||''}" data-go="${go}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></button>`;
   h+='<div class="mcards">';
@@ -1115,11 +1122,23 @@ function renderOverview(){
   if(o.roadmap&&o.roadmap.total)h+=card('Project roadmap',o.roadmap.percent+'%',o.roadmap.done+' of '+o.roadmap.total+' tasks'+(o.roadmap.current?' · Now: '+esc(o.roadmap.current):''),o.roadmap.percent===100?'good':'','roadmap');
   if(o.email)h+=card('Email',o.email.enabled?'On':'Off',esc(o.email.last_test||'Not tested yet'),o.email.enabled?'good':'warn','email');
   h+='</div>';
-  if(d&&d.recent.length){h+='<div class="mpanel"><h3>Latest dubs</h3>'+d.recent.map(j=>`<div class="li" data-job="${esc(j.id)}"><div><b>${esc(j.name)}</b><div class="meta">${esc(j.owner)} · ${esc(langNameOf(j.target_language))} · ${new Date(j.created_at).toLocaleString()}</div></div><span class="mpill ${esc(j.status)}">${esc(j.status_label)}${j.status==='running'?' '+j.progress+'%':''}</span></div>`).join('')+'</div>';}
+  if(d&&d.recent.length){h+='<div class="mpanel"><h3>Latest dubs</h3>'+d.recent.map(j=>`<div class="li" data-job="${esc(j.id)}"><div><b>${esc(j.name)}</b><div class="meta">${esc(j.owner)} · ${esc(langNameOf(j.target_language))} · ${new Date(j.created_at).toLocaleString()}${j.status==='running'?' · '+esc(j.stage||'Starting')+' · '+j.progress+'%':j.status==='queued'?' · Waiting for worker':''}</div></div><span class="mpill ${esc(j.status)}">${esc(j.status_label)}${j.status==='running'?' '+j.progress+'%':''}</span></div>`).join('')+'</div>';}
   h+='<div class="hwstart" style="margin-top:14px"><span><b>Need help?</b> Step-by-step guides for setup, integrations, access, dubbing, training and deployment.</span><button class="btn ghost sm" data-go="guides">Open how-to guides</button></div>';
   $('mbody').innerHTML=h;
+  $('overviewRefresh').onclick=()=>refreshOverview(false);
+  if(!overviewTimer)overviewTimer=setInterval(()=>{
+    if(M.current==='overview'&&!document.hidden&&!$('vManage').classList.contains('hidden'))refreshOverview(true);
+  },10000);
   $('mbody').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(b.dataset.go==='guides'||M.sections.some(s=>s.key===b.dataset.go))mGo(b.dataset.go);});
   $('mbody').querySelectorAll('[data-job]').forEach(r=>r.onclick=()=>mGo('dubs',{open:r.dataset.job}).then(()=>mOpen('dubs',r.dataset.job)));
+}
+async function refreshOverview(silent){
+  if(overviewRefreshing)return;
+  overviewRefreshing=true;
+  const button=$('overviewRefresh');if(button){button.disabled=true;button.textContent='Checking…';}
+  try{const data=await api('/api/manage/');M.overview=data.overview;renderOverview();}
+  catch(e){if(!silent)toast(e.message);}
+  finally{overviewRefreshing=false;const current=$('overviewRefresh');if(current){current.disabled=false;current.textContent='Refresh status';}}
 }
 /* ----- Project roadmap: milestones with tasks you tick off ----- */
 const RM={filter:'all',area:'',open:new Set(),openTasks:new Set(),data:null};

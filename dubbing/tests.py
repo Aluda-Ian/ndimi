@@ -6,20 +6,23 @@ providers (no API keys or network needed) and real ffmpeg.
 import shutil
 import subprocess
 import tempfile
+from io import StringIO
 from pathlib import Path
 from unittest import mock, skipUnless
 
 import numpy as np
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from .engine.audio import SR, FFmpeg
 from .engine.segmenter import build_lines
 from .engine.timing import fit
 from .engine.types import Transcript, Word
-from .models import DubbingSettings, DubJob
+from .models import DubbingSettings, DubJob, WorkerHeartbeat
 from .worker import run_once
 
 HAS_FFMPEG = shutil.which('ffmpeg') is not None
@@ -74,6 +77,41 @@ class EngineTests(TestCase):
         self.assertAlmostEqual(speed, 1.3)
         self.assertGreater(overflow, 0)
         self.assertEqual(fit(1.0, 0, 2, 3), (1.0, 0.0))
+
+    def test_missing_ffmpeg_is_reported_without_crashing(self):
+        self.assertIsNone(FFmpeg('missing-ndimi-ffmpeg').check())
+
+
+class WorkerHeartbeatTests(TestCase):
+    def test_worker_command_reports_missing_ffmpeg_and_dashboard_status(self):
+        user = get_user_model().objects.create_user('monitor', password='pass-12345!')
+        user.user_permissions.add(Permission.objects.get(codename='view_dubjob'))
+        settings = DubbingSettings.load()
+        settings.ffmpeg_path = 'missing-ndimi-ffmpeg'
+        settings.save(update_fields=['ffmpeg_path'])
+        output, errors = StringIO(), StringIO()
+
+        with mock.patch('dubbing.management.commands.run_dub_worker.run_once', return_value=False):
+            call_command('run_dub_worker', '--once', name='test-worker', stdout=output, stderr=errors)
+
+        heartbeat = WorkerHeartbeat.objects.get(pk='test-worker')
+        self.assertFalse(heartbeat.is_running)
+        self.assertFalse(heartbeat.ffmpeg_available)
+        self.assertIn('ffmpeg was not found', errors.getvalue())
+
+        from system.stats import dashboard_stats
+
+        status = dashboard_stats(user)['dubs']['worker']
+        self.assertFalse(status['online'])
+        self.assertFalse(status['ffmpeg_available'])
+
+        heartbeat.last_seen_at = timezone.now()
+        heartbeat.is_running = True
+        heartbeat.ffmpeg_version = 'ffmpeg version test'
+        heartbeat.save()
+        status = dashboard_stats(user)['dubs']['worker']
+        self.assertTrue(status['online'])
+        self.assertTrue(status['ffmpeg_available'])
 
 
 @skipUnless(HAS_FFMPEG, 'ffmpeg is not installed')

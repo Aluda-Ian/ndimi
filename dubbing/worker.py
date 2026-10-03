@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import DubJob
+from .models import DubJob, WorkerHeartbeat
 from .pipeline import run_job
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,17 @@ STALE_AFTER = timedelta(hours=2)
 
 def worker_name():
     return f'{socket.gethostname()}:{os.getpid()}'
+
+
+def record_worker(name, ffmpeg_version, running=True):
+    WorkerHeartbeat.objects.update_or_create(
+        name=name,
+        defaults={
+            'last_seen_at': timezone.now(),
+            'is_running': running,
+            'ffmpeg_version': ffmpeg_version or '',
+        },
+    )
 
 
 def recover_stale():

@@ -34,7 +34,10 @@ class FFmpeg:
         return result.stdout
 
     def check(self):
-        out = subprocess.run([self.path, '-version'], capture_output=True, text=True)
+        try:
+            out = subprocess.run([self.path, '-version'], capture_output=True, text=True)
+        except FileNotFoundError:
+            return None
         return out.stdout.splitlines()[0] if out.returncode == 0 else None
 
     def info(self, path):

@@ -162,7 +162,7 @@ Start MongoDB locally or set `MONGO_URI` in `.env` to a MongoDB Atlas connection
 
 ## Deployment
 
-Deploy the Django application and keep a `python manage.py run_dub_worker` process running. Static-only hosting of `index.html` is not supported: without `/api/config/`, the app disables project creation rather than falling back to a simulated demo. Use persistent relational storage (`DATABASE_URL`) and persistent media storage for production.
+Run `python manage.py migrate` against the production `DATABASE_URL` before deploying schema changes. Deploy the Django application and keep a `python manage.py run_dub_worker` process running on an always-on worker host; Vercel functions cannot keep this worker alive. The admin Overview reports worker heartbeat and FFmpeg readiness and refreshes while open. Static-only hosting of `index.html` is not supported: without `/api/config/`, the app disables project creation rather than falling back to a simulated demo. Use persistent relational storage (`DATABASE_URL`) and persistent media storage for production.
 
 ## Using the demo
 

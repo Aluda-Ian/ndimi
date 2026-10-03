@@ -208,6 +208,22 @@ class Segment(models.Model):
         return f'#{self.index} {self.source_text[:40]}'
 
 
+class WorkerHeartbeat(models.Model):
+    name = models.CharField(max_length=320, primary_key=True)
+    last_seen_at = models.DateTimeField(default=timezone.now, db_index=True)
+    is_running = models.BooleanField(default=True)
+    ffmpeg_version = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-last_seen_at']
+        verbose_name = 'dub worker'
+        verbose_name_plural = 'dub workers'
+
+    @property
+    def ffmpeg_available(self):
+        return bool(self.ffmpeg_version)
+
+
 class JobEvent(models.Model):
     job = models.ForeignKey(DubJob, on_delete=models.CASCADE, related_name='events')
     at = models.DateTimeField(default=timezone.now)

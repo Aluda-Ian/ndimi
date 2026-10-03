@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 
 from django.core.management.base import BaseCommand
@@ -6,7 +7,7 @@ from django.db import close_old_connections
 
 from dubbing.engine.audio import FFmpeg
 from dubbing.models import DubbingSettings
-from dubbing.worker import recover_stale, run_once, worker_name
+from dubbing.worker import record_worker, recover_stale, run_once, worker_name
 
 
 class Command(BaseCommand):
@@ -25,7 +26,22 @@ class Command(BaseCommand):
             self.stderr.write(self.style.WARNING('ffmpeg was not found. Install it or set its path in Admin > Dubbing settings.'))
         else:
             self.stdout.write(version)
+        record_worker(name, version)
         self.stdout.write(self.style.SUCCESS(f'Dub worker {name} started. Press Ctrl+C to stop.'))
+        stop_heartbeat = threading.Event()
+
+        def heartbeat():
+            while not stop_heartbeat.wait(15):
+                close_old_connections()
+                try:
+                    record_worker(name, version)
+                except Exception:
+                    logging.exception('Could not record heartbeat for worker %s', name)
+                finally:
+                    close_old_connections()
+
+        heartbeat_thread = threading.Thread(target=heartbeat, name=f'{name}-heartbeat', daemon=True)
+        heartbeat_thread.start()
         last_recover = 0.0
         try:
             while True:
@@ -40,3 +56,11 @@ class Command(BaseCommand):
                     time.sleep(options['interval'])
         except KeyboardInterrupt:
             self.stdout.write('Stopping worker.')
+        finally:
+            stop_heartbeat.set()
+            heartbeat_thread.join(timeout=2)
+            close_old_connections()
+            try:
+                record_worker(name, version, running=False)
+            except Exception:
+                logging.exception('Could not mark worker %s as stopped', name)

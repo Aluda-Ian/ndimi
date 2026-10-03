@@ -13,9 +13,20 @@ def dashboard_stats(user):
     try:
         if user.has_perm('dubbing.view_dubjob'):
             from dubbing.models import DubJob
+            from dubbing.models import WorkerHeartbeat
 
             jobs = DubJob.objects.all()
             oldest = jobs.filter(status='queued', run_after__isnull=True).order_by('created_at').first()
+            heartbeat = WorkerHeartbeat.objects.order_by('-last_seen_at').first()
+            worker = None
+            if heartbeat:
+                worker = {
+                    'name': heartbeat.name,
+                    'online': heartbeat.is_running and heartbeat.last_seen_at >= now - timedelta(seconds=45),
+                    'last_seen': heartbeat.last_seen_at.isoformat(),
+                    'ffmpeg_available': heartbeat.ffmpeg_available,
+                    'ffmpeg_version': heartbeat.ffmpeg_version,
+                }
             data['dubs'] = {
                 'active': jobs.filter(status__in=['queued', 'running']).count(),
                 'running': jobs.filter(status='running').count(),
@@ -23,7 +34,7 @@ def dashboard_stats(user):
                 'done_week': jobs.filter(status='completed', finished_at__gte=week).count(),
                 'failed_week': jobs.filter(status='failed', finished_at__gte=week).count(),
                 'recent': list(jobs.select_related('owner')[:6]),
-                # Queued >2 min with nothing running usually means no worker is up.
+                'worker': worker,
                 'worker_idle': bool(oldest and oldest.created_at < now - timedelta(minutes=2)
                                     and not jobs.filter(status='running').exists()),
             }

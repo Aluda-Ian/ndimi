@@ -290,7 +290,7 @@ def index(request):
     if 'dubs' in stats:
         stats['dubs']['recent'] = [
             {'id': str(j.pk), 'name': j.name, 'owner': j.owner.get_username(), 'status': j.status,
-             'status_label': j.get_status_display(), 'progress': j.progress, 'target_language': j.target_language,
+             'status_label': j.get_status_display(), 'stage': j.stage, 'progress': j.progress, 'target_language': j.target_language,
              'created_at': j.created_at.isoformat()}
             for j in stats['dubs']['recent']
         ]
