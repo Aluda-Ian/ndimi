@@ -154,11 +154,15 @@ class IntegrationForm(forms.ModelForm):
         inst = self.instance
         self.fields['api_key'].label = inst.key_label or 'API key'
         self.fields['api_secret'].label = inst.secret_label or 'API secret (optional)'
+        if inst.slug == 'elevenlabs':
+            for name in ('api_secret', 'clear_api_secret', 'extra_secrets', 'clear_extra_secrets'):
+                self.fields.pop(name, None)
         if inst.pk:
             self.fields['api_key'].help_text = crypto.mask(inst.api_key) + ' Leave blank to keep it.'
-            self.fields['api_secret'].help_text = crypto.mask(inst.api_secret) + ' Leave blank to keep it.'
+            if 'api_secret' in self.fields:
+                self.fields['api_secret'].help_text = crypto.mask(inst.api_secret) + ' Leave blank to keep it.'
             saved = inst.extra_secrets
-            if saved:
+            if saved and 'extra_secrets' in self.fields:
                 self.fields['extra_secrets'].help_text = (
                     f'Saved keys: {", ".join(sorted(saved))}. Pasting new JSON replaces all of them. '
                     'Leave blank to keep what is saved.'
@@ -215,6 +219,16 @@ class IntegrationAdmin(admin.ModelAdmin):
         ('Field labels', {'fields': ('key_label', 'secret_label'), 'classes': ('collapse',)}),
         ('History', {'fields': ('updated_at', 'updated_by')}),
     )
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if not obj or obj.slug != 'elevenlabs':
+            return fieldsets
+        optional_fields = {'api_secret', 'clear_api_secret', 'extra_secrets', 'clear_extra_secrets'}
+        return tuple(
+            (title, {**options, 'fields': tuple(name for name in options['fields'] if name not in optional_fields)})
+            for title, options in fieldsets
+        )
 
     @admin.display(description='Credentials')
     def key_status(self, obj):

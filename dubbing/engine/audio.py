@@ -75,11 +75,17 @@ class FFmpeg:
                  input_bytes=samples.tobytes())
         return out_path
 
-    def load_range(self, path, start, end):
-        """Decode only [start, end) seconds (fast seek), mono float32."""
+    def load_range(self, path, start, end, channels=1):
+        """Decode only [start, end) seconds (fast seek), float32: mono, or (n, 2) for channels=2."""
         args = ['-ss', f'{max(0.0, start):.3f}', '-t', f'{max(0.01, end - start):.3f}', '-i', path,
-                '-f', 'f32le', '-acodec', 'pcm_f32le', '-ac', 1, '-ar', SR, 'pipe:1']
-        return np.frombuffer(self.run(args), dtype=np.float32)
+                '-f', 'f32le', '-acodec', 'pcm_f32le', '-ac', channels, '-ar', SR, 'pipe:1']
+        data = np.frombuffer(self.run(args), dtype=np.float32)
+        return data.reshape(-1, channels) if channels > 1 else data
+
+    def raw_to_wav(self, raw_path, out_wav, channels=1):
+        """Wrap a raw float32 stream (from render_episode) as 16-bit WAV without loading it into memory."""
+        self.run(['-f', 'f32le', '-ar', SR, '-ac', channels, '-i', raw_path, '-c:a', 'pcm_s16le', out_wav])
+        return out_wav
 
     def extract_audio(self, src, out_wav):
         self.run(['-i', src, '-vn', '-ac', 2, '-ar', SR, '-c:a', 'pcm_s16le', out_wav])
@@ -100,9 +106,11 @@ class FFmpeg:
         return self.load(path, filters=self.TRIM)
 
     def change_speed(self, samples, factor):
-        """Time-stretch without changing pitch (atempo)."""
+        """Time-stretch without changing pitch (atempo). Mono, or stereo as an (n, 2) array."""
         if abs(factor - 1.0) < 0.01:
             return samples
+        samples = np.asarray(samples, dtype=np.float32)
+        channels = samples.shape[1] if samples.ndim == 2 else 1
         chain, remaining = [], factor
         while remaining > 2.0:
             chain.append('atempo=2.0')
@@ -111,10 +119,11 @@ class FFmpeg:
             chain.append('atempo=0.5')
             remaining /= 0.5
         chain.append(f'atempo={remaining:.4f}')
-        raw = self.run(['-f', 'f32le', '-ar', SR, '-ac', 1, '-i', 'pipe:0', '-af', ','.join(chain),
-                        '-f', 'f32le', '-acodec', 'pcm_f32le', '-ac', 1, '-ar', SR, 'pipe:1'],
-                       input_bytes=np.asarray(samples, dtype=np.float32).tobytes())
-        return np.frombuffer(raw, dtype=np.float32)
+        raw = self.run(['-f', 'f32le', '-ar', SR, '-ac', channels, '-i', 'pipe:0', '-af', ','.join(chain),
+                        '-f', 'f32le', '-acodec', 'pcm_f32le', '-ac', channels, '-ar', SR, 'pipe:1'],
+                       input_bytes=samples.tobytes())
+        out = np.frombuffer(raw, dtype=np.float32)
+        return out.reshape(-1, channels) if channels > 1 else out
 
     def speaker_sample(self, vocals_path, spans, out_mp3, max_seconds=90):
         """Concatenate a speaker's clean speech into one clip for voice cloning."""
@@ -177,6 +186,16 @@ class FFmpeg:
         self.run(['-i', video, '-i', audio_wav, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy',
                   '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', out_mp4])
         return out_mp4
+
+    def encode_mp3(self, wav, out_mp3, *, bitrate_kbps=128, tags=None):
+        """Podcast MP3: constant bitrate, 44.1 kHz stereo, ID3v2.3 tags (what Apple and Spotify expect)."""
+        args = ['-i', wav, '-c:a', 'libmp3lame', '-b:a', f'{int(bitrate_kbps)}k', '-ar', SR, '-ac', 2,
+                '-id3v2_version', 3, '-write_xing', 1]
+        for key, value in (tags or {}).items():
+            if value:
+                args += ['-metadata', f'{key}={str(value)[:500]}']
+        self.run([*args, out_mp3])
+        return out_mp3
 
     def encode_audio(self, wav, out_m4a):
         self.run(['-i', wav, '-c:a', 'aac', '-b:a', '192k', out_m4a])

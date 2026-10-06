@@ -12,7 +12,9 @@ from system.models import SystemSettings
 from .models import DubbingSettings, DubJob
 from .pipeline import delete_job_files, stages_for
 
-VIDEO_EXTS = {'mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', 'mp3', 'wav', 'm4a', 'aac', 'ogg'}
+AUDIO_EXTS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac'}
+VIDEO_EXTS = {'mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'} | AUDIO_EXTS
+KINDS = ('auto', 'video', 'podcast')
 
 
 # ---------- helpers ----------
@@ -79,6 +81,8 @@ def job_dict(job, detail=False):
         'source_language': job.source_language,
         'target_language': job.target_language,
         'duration': job.duration_seconds,
+        'kind': 'podcast' if job.is_podcast else 'video',
+        'pacing': job.pacing,
         'created_at': job.created_at.isoformat(),
         'finished_at': job.finished_at.isoformat() if job.finished_at else None,
         'editable': job.engine == 'pipeline' and job.status in ('review', 'completed', 'failed'),
@@ -88,8 +92,14 @@ def job_dict(job, detail=False):
             'subtitles': _url(job, 'subtitles') if job.subtitles_target else None,
             'source_subtitles': _url(job, 'source-subtitles') if job.subtitles_source else None,
             'source': _url(job, 'source') if job.source_file else None,
+            'transcript': _url(job, 'transcript') if job.transcript_target else None,
         },
     }
+    if job.is_podcast:
+        data['podcast'] = {
+            'output_duration': job.state.get('output_duration'),
+            'show_notes': job.state.get('show_notes') or {},
+        }
     if detail:
         data['stages'] = _stages(job)
         data['speakers'] = [
@@ -139,11 +149,11 @@ def _create(request):
     upload = request.FILES.get('file')
     source_url = post.get('source_url', '').strip()
     if not upload and not source_url:
-        return JsonResponse({'error': 'Upload a video or paste a link.'}, status=400)
+        return JsonResponse({'error': 'Upload a video or podcast episode, or paste a link.'}, status=400)
     if upload:
         ext = Path(upload.name).suffix.lower().lstrip('.')
         if ext not in VIDEO_EXTS:
-            return JsonResponse({'error': f'Unsupported file type .{ext}. Use MP4, MOV, WEBM, MP3, WAV or M4A.'}, status=400)
+            return JsonResponse({'error': f'Unsupported file type .{ext}. Use MP4, MOV, WEBM, MP3, WAV, M4A or FLAC.'}, status=400)
         max_mb = SystemSettings.load().max_video_upload_mb
         if upload.size > max_mb * 1024 * 1024:
             return JsonResponse({'error': f'The file is larger than {max_mb} MB.'}, status=400)
@@ -168,12 +178,28 @@ def _create(request):
     except (json.JSONDecodeError, AssertionError):
         return JsonResponse({'error': 'glossary must be a JSON object like {"Jeota Media": "Jeota Media"}.'}, status=400)
 
+    kind = post.get('kind', 'auto').strip().lower() or 'auto'
+    if kind not in KINDS:
+        return JsonResponse({'error': 'kind must be auto, video or podcast.'}, status=400)
+    if kind == 'auto' and upload and Path(upload.name).suffix.lower().lstrip('.') in AUDIO_EXTS:
+        kind = 'podcast'
+    pacing = post.get('pacing', '').strip().lower()
+    if pacing and pacing not in ('natural', 'sync'):
+        return JsonResponse({'error': 'pacing must be natural or sync.'}, status=400)
+
     options = {
+        'kind': kind,
         'review': engine == 'pipeline' and _bool(post.get('review'), settings.review_by_default),
         'clone_voices': _bool(post.get('clone_voices'), settings.clone_voices),
         'keep_background': _bool(post.get('keep_background'), True),
         'glossary': glossary,
     }
+    if pacing:
+        options['pacing'] = pacing
+    show_notes = {key: post.get(key, '').strip()[:limit]
+                  for key, limit in (('description', 4000), ('show', 200), ('author', 200))}
+    if any(show_notes.values()):
+        options['show_notes'] = show_notes
     if post.get('num_speakers', '').isdigit():
         options['num_speakers'] = max(0, min(32, int(post['num_speakers'])))
 
@@ -350,6 +376,7 @@ def download(request, job_id, kind):
     field = {
         'video': job.dubbed_video, 'audio': job.dubbed_audio, 'subtitles': job.subtitles_target,
         'source-subtitles': job.subtitles_source, 'source': job.source_file,
+        'transcript': job.transcript_target,
     }.get(kind)
     if not field:
         raise Http404('File not ready.')

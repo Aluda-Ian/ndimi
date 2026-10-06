@@ -116,18 +116,30 @@ Start more workers for more jobs at once. Jobs survive restarts: finished stages
 
 With **Review the script first** on, the job pauses after translation. Edit any line in the studio, then press **Approve script**. After a dub finishes, editing a line marks it "needs new voice", and **Regenerate** re-voices only those lines and re-renders. Lines that still run long after the speed-up are flagged "Too long by Xs · shorten".
 
+### Podcasts
+
+Audio-only uploads (MP3, WAV, M4A, AAC, OGG, OPUS, FLAC) are dubbed as podcast episodes. Send `kind=podcast` or `kind=video` to override the automatic choice.
+
+- **Natural pacing.** Video dubs squeeze each line into the speaker's on-screen slot. A podcast has no picture, so lines are only lightly sped up (at most `podcast_max_speedup`, default 1.1×). A line that still runs long pushes the rest of the episode later, and the extra time is won back in quiet pauses. Music (intros, jingles, outros) is never cut. Send `pacing=sync` to keep the original timing instead.
+- **Background.** With Demucs separation, the dub sits on the clean music stem, which is slowed slightly where a line needs more room. Otherwise the original is used with the voices muted, so the music between lines stays and the original voices drop out.
+- **Output.** A podcast MP3 (128 kbps stereo, -16 LUFS, ID3 title, show, author, language and description), SRT subtitles on the new timeline, and a readable transcript with speakers and timestamps (`download/transcript/`).
+- **Show notes.** Optional `description`, `show` and `author` fields. The episode title (`name`) and description are translated and used in the MP3 tags and transcript.
+- **Long episodes.** Up to `max_podcast_minutes` (default 180). The episode is mixed piece by piece, so memory stays low. Long episodes are sent to Whisper in 20-minute parts because of its 25 MB limit. Check that the upload limit in System settings allows the file size (a 3-hour 128 kbps MP3 is about 170 MB).
+
+Podcast settings are in **Admin > Dubbing settings > Podcasts**.
+
 ### Permissions
 
 *Dubbing | dub job | Can add dub job* lets someone create dubs (the Users group has it). *Can see every user's dub jobs* and *Can choose the dubbing engine per job* are for staff. Cloned voices are deleted from ElevenLabs when a job is deleted.
 
 ### Dubbing API
 
-- `GET/POST /api/dubs/`: list or create (multipart `file` or `source_url`, `target_language`, `source_language`, `review`, `clone_voices`, `num_speakers`, `glossary` JSON)
+- `GET/POST /api/dubs/`: list or create (multipart `file` or `source_url`, `target_language`, `source_language`, `review`, `clone_voices`, `num_speakers`, `glossary` JSON; podcasts also `kind`, `pacing`, `description`, `show`, `author`)
 - `GET/DELETE /api/dubs/<id>/`: status, stages, speakers, lines, events
 - `PATCH /api/dubs/<id>/segments/<n>/`: `translated_text`, `speaker_id`, `start`, `end`
 - `PATCH /api/dubs/<id>/speakers/<pk>/`: `name`, `voice_id`
 - `POST /api/dubs/<id>/approve/ | regenerate/ | cancel/ | retry/`
-- `GET /api/dubs/<id>/download/video|audio|subtitles|source-subtitles|source/` (add `?download=1` to save the file)
+- `GET /api/dubs/<id>/download/video|audio|subtitles|source-subtitles|source|transcript/` (add `?download=1` to save the file)
 
 ## Settings in the app (admins)
 

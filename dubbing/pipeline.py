@@ -2,8 +2,10 @@
 
 Ndimi pipeline:
   prepare -> separate -> transcribe -> translate -> [review] -> voices -> synthesize -> mix -> render
+Podcasts (audio-only jobs) run the same stages with natural pacing (engine/podcast.py)
+and render a tagged MP3, SRT and a readable transcript.
 ElevenLabs Dubbing API:
-  el_submit -> el_wait (non-blocking polling) -> el_download
+  el_submit -> el_wait (non-blocking polling) -> el_download   (Dubbing v2 projects API)
 """
 import logging
 import shutil
@@ -17,10 +19,12 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
 
+from .engine import podcast
 from .engine.audio import SR, FFmpeg, FFmpegError
 from .engine.segmenter import build_lines
 from .engine.subtitles import parse_srt, to_srt
 from .engine.timing import fit
+from .engine.types import Transcript, Word
 from .models import DubbingSettings, DubJob, Segment, Speaker
 from .providers import ProviderError, get_separator, get_stt, get_translator, get_tts
 from .providers.elevenlabs import ElevenLabsDubbing
@@ -59,8 +63,23 @@ class Paused(Exception):
         self.status, self.retry_in = status, retry_in
 
 
+PODCAST_LABELS = {
+    'prepare': 'Preparing the episode',
+    'separate': 'Separating voices from music',
+    'mix': 'Pacing and mixing the episode',
+    'render': 'Rendering the MP3 and transcript',
+}
+MEDIA_SUFFIXES = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac', '.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'}
+WHISPER_MAX_BYTES = 24 * 1024 * 1024  # OpenAI's upload limit is 25 MB
+WHISPER_CHUNK_SECONDS = 20 * 60
+
+
 def stages_for(job):
-    return ELEVENLABS_STAGES if job.engine == 'elevenlabs_dubbing' else PIPELINE_STAGES
+    if job.engine == 'elevenlabs_dubbing':
+        return ELEVENLABS_STAGES
+    if job.is_podcast:
+        return [(key, PODCAST_LABELS.get(key, label), progress) for key, label, progress in PIPELINE_STAGES]
+    return PIPELINE_STAGES
 
 
 # ---------- runner ----------
@@ -168,12 +187,15 @@ def stage_prepare(job, ctx):
     info = ff.info(src)
     if not info['has_audio']:
         raise ValueError('This file has no audio track to dub.')
-    if info['duration'] > settings.max_duration_minutes * 60:
-        raise ValueError(f'The video is longer than {settings.max_duration_minutes} minutes.')
     work = job.workdir
     files = _files(job)
     files['source'] = src
     files['has_video'] = info['has_video']
+    if job.is_podcast:
+        if info['duration'] > settings.max_podcast_minutes * 60:
+            raise ValueError(f'The episode is longer than {settings.max_podcast_minutes} minutes.')
+    elif info['duration'] > settings.max_duration_minutes * 60:
+        raise ValueError(f'The video is longer than {settings.max_duration_minutes} minutes.')
     files['audio'] = ff.extract_audio(src, str(work / 'audio.wav'))
     files['speech'] = ff.to_speech_mp3(files['audio'], str(work / 'speech.mp3'))
     job.duration_seconds = info['duration']
@@ -201,12 +223,12 @@ def stage_separate(job, ctx):
 def stage_transcribe(job, ctx):
     settings = ctx['settings']
     files = _files(job)
-    stt = get_stt(job.options.get('stt') or settings.stt_provider)
-    transcript = stt.transcribe(files['speech'], language=job.source_language or None,
-                                num_speakers=job.options.get('num_speakers') or None)
+    provider = job.options.get('stt') or settings.stt_provider
+    stt = get_stt(provider)
+    transcript = _transcribe(job, ctx, stt, provider, files['speech'])
     lines = build_lines(transcript)
     if not lines:
-        raise ValueError('No speech was found in this video.')
+        raise ValueError(f'No speech was found in this {"episode" if job.is_podcast else "video"}.')
 
     detected = ISO3.get(transcript.language, transcript.language)
     with transaction.atomic():
@@ -229,6 +251,25 @@ def stage_transcribe(job, ctx):
     job.log(f'Found {len(lines)} lines from {len(speakers)} speaker(s). Source language: {job.source_language or "unknown"}.')
 
 
+def _transcribe(job, ctx, stt, provider, path):
+    """Long podcasts are sent to Whisper in 20-minute parts (its upload limit is 25 MB)."""
+    language, speakers = job.source_language or None, job.options.get('num_speakers') or None
+    if provider != 'openai' or Path(path).stat().st_size <= WHISPER_MAX_BYTES:
+        return stt.transcribe(path, language=language, num_speakers=speakers)
+    ff, words, detected, offset = ctx['ff'], [], '', 0.0
+    total = job.duration_seconds or ff.info(path)['duration']
+    while offset < total:
+        part = str(job.workdir / f'speech_part_{int(offset):06d}.mp3')
+        ff.run(['-ss', f'{offset:.3f}', '-t', WHISPER_CHUNK_SECONDS, '-i', path, '-c', 'copy', part])
+        result = stt.transcribe(part, language=language or detected or None, num_speakers=speakers)
+        detected = detected or result.language
+        words += [Word(w.start + offset, w.end + offset, w.text, w.speaker) for w in result.words]
+        Path(part).unlink(missing_ok=True)
+        offset += WHISPER_CHUNK_SECONDS
+        job.log(f'Transcribed {podcast.timestamp(min(offset, total))} of {podcast.timestamp(total)}.')
+    return Transcript(language=detected, words=words, phrase_level=True)
+
+
 def stage_translate(job, ctx):
     settings = ctx['settings']
     translator = get_translator(job.options.get('translation') or settings.translation_provider)
@@ -244,6 +285,25 @@ def stage_translate(job, ctx):
         seg.translated_text = results.get(seg.index, seg.translated_text)
         seg.status = 'pending'
     Segment.objects.bulk_update(todo, ['translated_text', 'status'])
+    if job.is_podcast:
+        _translate_show_notes(job, translator)
+
+
+def _translate_show_notes(job, translator):
+    """Episode title and description, for the MP3 tags and the transcript. Never fails the job."""
+    notes = job.options.get('show_notes') or {}
+    title = '' if Path(job.name).suffix.lower() in MEDIA_SUFFIXES else job.name  # a file name is not a title
+    items = [(-1, title), (-2, notes.get('description', ''))]
+    lines = [{'i': i, 'text': text, 'duration': 120.0, 'speaker': ''} for i, text in items if text.strip()]
+    if not lines:
+        return
+    try:
+        results = translator.translate(lines, job.source_language, job.target_language, glossary=job.options.get('glossary'))
+    except (ProviderError, requests.RequestException) as error:
+        job.log(f'Could not translate the show notes ({error}). The original title is used.', level='warning')
+        return
+    job.state['show_notes'] = {'title': results.get(-1, ''), 'description': results.get(-2, '')}
+    _save_state(job)
 
 
 def stage_review(job, ctx):
@@ -303,6 +363,8 @@ def stage_synthesize(job, ctx):
     out_dir.mkdir(exist_ok=True)
     language = job.target_language if len(job.target_language) == 2 else None
     workers = int(job.options.get('tts_concurrency', 3))
+    natural = job.pacing == 'natural'
+    max_speedup = settings.podcast_max_speedup if natural else settings.max_speedup
 
     def work(seg):
         prev_seg, next_seg = by_index.get(seg.index - 1), by_index.get(seg.index + 1)
@@ -318,7 +380,9 @@ def stage_synthesize(job, ctx):
             samples = ff.load_speech(path)
             duration = len(samples) / SR
             nxt = by_index.get(seg.index + 1)
-            speed, overflow = fit(duration, seg.start, seg.end, nxt.start if nxt else None, settings.max_speedup)
+            speed, overflow = fit(duration, seg.start, seg.end, nxt.start if nxt else None, max_speedup)
+            if natural:
+                overflow = 0.0  # the episode makes room for the line (see stage_mix)
             with open(path, 'rb') as fh:
                 if seg.audio:
                     seg.audio.delete(save=False)
@@ -337,6 +401,8 @@ def stage_synthesize(job, ctx):
 
 
 def stage_mix(job, ctx):
+    if job.pacing == 'natural':
+        return _mix_natural(job, ctx)
     settings, ff = ctx['settings'], ctx['ff']
     files = _files(job)
     placements = []
@@ -354,7 +420,97 @@ def stage_mix(job, ctx):
     _save_state(job)
 
 
+def _mix_natural(job, ctx):
+    """Podcast mix: each line gets the time it needs; the bed (music) is re-timed around it."""
+    settings, ff = ctx['settings'], ctx['ff']
+    files, work = _files(job), job.workdir
+    segments = list(job.segments.order_by('index'))
+    ready = {s.index: s for s in segments if s.status == 'ready' and s.audio}
+
+    def clip(index):
+        seg = ready.get(index)
+        return ff.change_speed(ff.load_speech(seg.audio.path), seg.speed) if seg else None
+
+    durations = {i: (s.audio_duration or 0.0) / max(s.speed, 0.01) for i, s in ready.items()}
+    keep = job.options.get('keep_background', True)
+    bed_source = files.get('background') or files['audio']
+    gate = not files.get('background')  # no clean music stem: use the original with the voices muted
+
+    def read_bed(start, end):
+        return ff.load_range(bed_source, start, end, channels=2)
+
+    pieces, starts, total = podcast.plan_timeline(
+        [(s.index, s.start, s.end) for s in segments], durations, job.duration_seconds,
+        quiet=podcast.quiet_checker(read_bed) if keep else None,
+    )
+    podcast.render_episode(
+        pieces, read_bed=read_bed if keep else None, clip=clip, gate=gate, stretch=ff.change_speed,
+        bed_out=str(work / 'bed.raw'), voice_out=str(work / 'voice.raw'),
+    )
+    bed = ff.raw_to_wav(str(work / 'bed.raw'), str(work / 'bed.wav'), channels=2)
+    voice = ff.raw_to_wav(str(work / 'voice.raw'), str(work / 'voice.wav'))
+    for raw in ('bed.raw', 'voice.raw'):
+        (work / raw).unlink(missing_ok=True)
+    files['mix'] = ff.mix(voice, str(work / 'mix.wav'), background=bed if keep else None,
+                          loudness=settings.podcast_loudness_lufs)
+    timeline = {}
+    for seg in segments:
+        new_start = starts.get(seg.index, seg.start)
+        length = durations.get(seg.index) or (seg.end - seg.start)
+        timeline[str(seg.index)] = [round(new_start, 3), round(new_start + length, 3)]
+    job.state['timeline'] = timeline
+    job.state['output_duration'] = round(total, 3)
+    _save_state(job)
+    longer = total - (job.duration_seconds or total)
+    if longer > 1:
+        job.log(f'Natural pacing: the dub runs {podcast.timestamp(longer)} longer than the original '
+                f'({100 * longer / job.duration_seconds:.0f}%). Shorter translations bring it closer.')
+
+
+def _placed(job):
+    """(start, end, segment) on the output timeline (podcasts are re-timed in _mix_natural)."""
+    timeline = job.state.get('timeline') if job.pacing == 'natural' else None
+    for seg in job.segments.select_related('speaker').order_by('index'):
+        start, end = (timeline or {}).get(str(seg.index), (seg.start, seg.end))
+        yield start, end, seg
+
+
+def _render_podcast(job, ctx):
+    ff, settings = ctx['ff'], ctx['settings']
+    files, work = _files(job), job.workdir
+    notes = job.state.get('show_notes') or {}
+    title = notes.get('title') or (Path(job.name).stem if Path(job.name).suffix.lower() in MEDIA_SUFFIXES else job.name)
+    description = notes.get('description') or (job.options.get('show_notes') or {}).get('description', '')
+    tags = {
+        'title': title,
+        'artist': (job.options.get('show_notes') or {}).get('author', ''),
+        'album': (job.options.get('show_notes') or {}).get('show', ''),
+        'language': job.target_language,
+        'comment': description,
+        'encoded_by': 'Ndimi (ndimi.jeotamedia.co.ke)',
+    }
+    mp3 = ff.encode_mp3(files['mix'], str(work / 'dub.mp3'), bitrate_kbps=settings.podcast_bitrate_kbps, tags=tags)
+    _replace(job.dubbed_audio, f'{_slug(job)}-{job.target_language}.mp3', mp3)
+    placed = list(_placed(job))
+    srt = to_srt((start, end, seg.translated_text) for start, end, seg in placed)
+    _save_text(job.subtitles_target, f'{job.target_language}.srt', srt)
+    text = podcast.transcript_text(
+        [(start, str(seg.speaker or 'Speaker'), seg.translated_text) for start, _, seg in placed],
+        title=title, notes=description,
+    )
+    _save_text(job.transcript_target, f'{_slug(job)}-{job.target_language}-transcript.txt', text)
+    job.save()
+
+
+def _save_text(field, name, text):
+    if field:
+        field.delete(save=False)
+    field.save(name, ContentFile(text.encode('utf-8')), save=False)
+
+
 def stage_render(job, ctx):
+    if job.is_podcast:
+        return _render_podcast(job, ctx)
     ff = ctx['ff']
     files = _files(job)
     work = job.workdir
@@ -394,63 +550,94 @@ PIPELINE_FUNCS = {
 
 def stage_el_submit(job, ctx):
     api = ElevenLabsDubbing()
-    source_path = None if (job.source_url and not job.source_file) else job.source_file.path
-    dubbing_id, expected = api.start(
+    source_path = job.source_file.path if job.source_file else None
+    project_id, language_id = api.start(
         source_path=source_path, source_url=job.source_url or None, source_lang=job.source_language or None,
-        target_lang=job.target_language, num_speakers=job.options.get('num_speakers') or 0, name=job.name,
+        target_lang=job.target_language, name=job.name,
     )
-    job.state['el_dubbing_id'] = dubbing_id
-    job.state['el_expected'] = expected or 120
+    job.state['el_project_id'] = project_id
+    job.state['el_language_id'] = language_id
     job.state['el_started'] = timezone.now().isoformat()
     _save_state(job)
-    job.log(f'ElevenLabs accepted the job (expected about {int(expected or 0)}s).')
+    job.log(f'ElevenLabs accepted the job (project {project_id}).')
 
 
 def stage_el_wait(job, ctx):
     from datetime import datetime
 
     api = ElevenLabsDubbing()
-    status, error = api.status(job.state['el_dubbing_id'])
-    if status == 'dubbed':
-        return
-    if status == 'failed':
-        raise ProviderError(f'ElevenLabs could not dub this video: {error or "unknown error"}')
+    project_id = job.state['el_project_id']
     started = datetime.fromisoformat(job.state['el_started'])
     elapsed = (timezone.now() - started).total_seconds()
     if elapsed > 4 * 3600:
         raise ProviderError('ElevenLabs took more than 4 hours. Try again later.')
-    expected = max(float(job.state.get('el_expected') or 120), 30)
-    job.set_stage('el_wait', 10 + int(80 * min(elapsed / expected, 0.97)))
+
+    language_id = job.state.get('el_language_id')
+    if not language_id:
+        project = api.project(project_id)
+        if project.get('status') == 'failed':
+            raise ProviderError(f'ElevenLabs could not prepare this file: {_el_error(project.get("error"))}')
+        if project.get('status') != 'ready':
+            job.set_stage('el_wait', 10 + int(30 * min(elapsed / 300, 0.97)))
+            raise Paused(status='queued', retry_in=15)
+        language_id = api.add_language(project_id, job.target_language)
+        job.state['el_language_id'] = language_id
+        _save_state(job)
+
+    target = api.language(project_id, language_id)
+    status = target.get('status', '')
+    if status == 'completed' and (target.get('outputs') or {}).get('lossless_audio'):
+        job.state['el_output'] = target['outputs']['lossless_audio']
+        _save_state(job)
+        return
+    if status == 'failed':
+        raise ProviderError(f'ElevenLabs could not dub this file: {_el_error(target.get("error"))}')
+    job.set_stage('el_wait', 10 + int(80 * min(elapsed / 600, 0.97)))
     raise Paused(status='queued', retry_in=15)
+
+
+def _el_error(error):
+    if isinstance(error, dict):
+        return error.get('message') or error.get('detail') or error.get('code') or str(error)
+    return error or 'unknown error'
 
 
 def stage_el_download(job, ctx):
     ff = ctx['ff']
     api = ElevenLabsDubbing()
-    dubbing_id, lang = job.state['el_dubbing_id'], job.target_language
-    tmp = job.workdir / 'el_dub'
-    path, content_type = api.download(dubbing_id, lang, str(tmp))
-    info = ff.info(path)
-    job.duration_seconds = info['duration']
-    if info['has_video']:
-        _replace(job.dubbed_video, f'{_slug(job)}-{lang}.mp4', path)
-    else:
-        _replace(job.dubbed_audio, f'{_slug(job)}-{lang}.mp3', path)
+    project_id, language_id, lang = job.state['el_project_id'], job.state['el_language_id'], job.target_language
+    work = job.workdir
+    dubbed = str(work / 'el_dub_audio')
+    try:
+        api.download(job.state['el_output'], dubbed)
+    except ProviderError:
+        # Signed URLs expire: fetch a fresh one and try once more.
+        job.state['el_output'] = (api.language(project_id, language_id).get('outputs') or {}).get('lossless_audio')
+        _save_state(job)
+        api.download(job.state['el_output'], dubbed)
 
-    target_srt = api.transcript(dubbing_id, lang)
-    source_srt = api.transcript(dubbing_id, job.source_language) if job.source_language else None
-    if target_srt:
-        job.subtitles_target.save(f'{lang}.srt', ContentFile(target_srt.encode('utf-8')), save=False)
-        target_items = parse_srt(target_srt)
-        source_items = parse_srt(source_srt) if source_srt else []
+    # v2 returns audio only. Put it back on the picture when we have the original video.
+    source = job.source_file.path if job.source_file else None
+    source_info = ff.info(source) if source else {'has_video': False}
+    job.duration_seconds = ff.info(dubbed)['duration']
+    if source_info['has_video']:
+        _replace(job.dubbed_video, f'{_slug(job)}-{lang}.mp4', ff.mux(source, dubbed, str(work / 'el_dub.mp4')))
+    else:
+        _replace(job.dubbed_audio, f'{_slug(job)}-{lang}.mp3', ff.encode_mp3(dubbed, str(work / 'el_dub.mp3')))
+
+    segments = api.transcript(project_id, language_id)
+    if segments:
+        items = [(float(s.get('start_s') or 0), float(s.get('end_s') or 0), s.get('translation') or '') for s in segments]
+        job.subtitles_target.save(f'{lang}.srt', ContentFile(to_srt(items).encode('utf-8')), save=False)
+        source_items = [(a, b, s.get('source_text') or '') for (a, b, _), s in zip(items, segments)]
+        if any(t for _, _, t in source_items):
+            job.subtitles_source.save('source.srt', ContentFile(to_srt(source_items).encode('utf-8')), save=False)
         job.segments.all().delete()
         Segment.objects.bulk_create([
-            Segment(job=job, index=i, start=s, end=e, translated_text=t, status='ready',
-                    source_text=source_items[i][2] if i < len(source_items) else '')
-            for i, (s, e, t) in enumerate(target_items)
+            Segment(job=job, index=i, start=a, end=b, translated_text=t, status='ready',
+                    source_text=segments[i].get('source_text') or '')
+            for i, (a, b, t) in enumerate(items)
         ])
-    if source_srt:
-        job.subtitles_source.save('source.srt', ContentFile(source_srt.encode('utf-8')), save=False)
     job.save()
 
 

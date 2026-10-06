@@ -66,6 +66,26 @@ def make_video(path, seconds=6):
                     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path], check=True, capture_output=True)
 
 
+def make_episode(path, seconds=6):
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', f'sine=frequency=220:duration={seconds}',
+                    '-c:a', 'libmp3lame', '-b:a', '64k', path], check=True, capture_output=True)
+
+
+class PodcastEngineTests(TestCase):
+    def test_long_lines_push_the_episode_and_quiet_pauses_win_it_back(self):
+        from .engine.podcast import plan_timeline
+
+        slots = [(0, 2.0, 4.0), (1, 6.0, 7.0)]
+        # Line 0 needs 3s for a 2s slot; the quiet 2s pause after it absorbs the drift.
+        _, starts, total = plan_timeline(slots, {0: 3.0, 1: 0.8}, 10.0, quiet=lambda a, b: True)
+        self.assertAlmostEqual(starts[1], 6.0)
+        self.assertAlmostEqual(total, 10.0)
+        # Music in the pause is never cut: the rest of the episode moves later instead.
+        _, starts, total = plan_timeline(slots, {0: 3.0, 1: 0.8}, 10.0, quiet=lambda a, b: False)
+        self.assertAlmostEqual(starts[1], 7.15)
+        self.assertAlmostEqual(total, 11.15)
+
+
 class EngineTests(TestCase):
     def test_segmenter_splits_on_speaker_and_pause(self):
         lines = build_lines(FakeSTT().transcribe('x'))
@@ -188,6 +208,37 @@ class PipelineTests(TestCase):
         other.user_permissions.add(Permission.objects.get(codename='use_dubbing_tool'))
         self.client.force_login(other)
         self.assertEqual(self.client.get(f'/api/dubs/{job.pk}/download/video/').status_code, 404)
+
+    def test_podcast_episode_natural_pacing_mp3_and_transcript(self):
+        path = Path(MEDIA) / 'episode.mp3'
+        make_episode(str(path))
+        upload = SimpleUploadedFile('episode.mp3', path.read_bytes(), content_type='audio/mpeg')
+        response = self.client.post('/api/dubs/', {
+            'file': upload, 'name': 'Kipindi cha kwanza', 'target_language': 'luo', 'review': 'false',
+            'description': 'We talk about farming.', 'show': 'Shamba Talk',
+        })
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()['dub']['kind'], 'podcast')
+        job = DubJob.objects.get(pk=response.json()['dub']['id'])
+        self.assertTrue(run_once('test'))
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+        self.assertTrue(job.is_podcast)
+        self.assertEqual(job.pacing, 'natural')
+        self.assertFalse(job.dubbed_video)
+        self.assertTrue(job.dubbed_audio.name.endswith('.mp3'))
+        self.assertEqual(job.state['show_notes']['description'], '[luo] We talk about farming.')
+        # Fake voices run longer than the original lines, so the episode grows instead of rushing them.
+        self.assertGreater(job.state['output_duration'], 6.0)
+        info = FFmpeg().info(job.dubbed_audio.path)
+        self.assertAlmostEqual(info['duration'], job.state['output_duration'], delta=0.3)
+        self.assertEqual(job.segments.filter(speed__gt=1.11).count(), 0)
+        transcript = Path(job.transcript_target.path).read_text(encoding='utf-8')
+        self.assertIn('[luo] Kipindi cha kwanza', transcript)
+        self.assertIn('Speaker 2:', transcript)
+        data = self.client.get(f'/api/dubs/{job.pk}/').json()['dub']
+        self.assertTrue(data['outputs']['transcript'])
+        self.assertEqual(self.client.get(data['outputs']['transcript']).status_code, 200)
 
     def test_provider_failure_retries_then_fails(self):
         from .providers import ProviderError

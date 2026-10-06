@@ -56,6 +56,12 @@ class DubbingSettings(SingletonModel):
     target_loudness_lufs = models.FloatField(default=-16.0, help_text='Integrated loudness of the final mix. -16 for web, -23 for broadcast.')
     max_duration_minutes = models.PositiveIntegerField(default=30, help_text='Longest source video users may submit.')
     max_jobs_per_user_per_day = models.PositiveIntegerField(default=10, help_text='0 = no limit. Superusers are exempt.')
+    max_podcast_minutes = models.PositiveIntegerField(default=180, help_text='Longest podcast episode (audio only) users may submit.')
+    podcast_max_speedup = models.FloatField(
+        default=1.1, help_text='Podcasts: fastest a line may be sped up. Lines that still run long move the rest of the episode later instead.',
+    )
+    podcast_loudness_lufs = models.FloatField(default=-16.0, help_text='Podcasts: integrated loudness of the episode. -16 is the Apple and Spotify norm.')
+    podcast_bitrate_kbps = models.PositiveSmallIntegerField(default=128, help_text='Podcasts: MP3 bitrate. 128 kbps stereo is the usual podcast standard.')
     ffmpeg_path = models.CharField(max_length=255, default='ffmpeg', help_text='Full path if ffmpeg is not on PATH, e.g. C:\\ffmpeg\\bin\\ffmpeg.exe')
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -113,6 +119,8 @@ class DubJob(models.Model):
     dubbed_audio = models.FileField(upload_to=job_output_path, max_length=300, blank=True)
     subtitles_target = models.FileField(upload_to=job_output_path, max_length=300, blank=True)
     subtitles_source = models.FileField(upload_to=job_output_path, max_length=300, blank=True)
+    transcript_target = models.FileField(upload_to=job_output_path, max_length=300, blank=True,
+                                         help_text='Podcasts: readable dubbed transcript with speakers and timestamps.')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -135,6 +143,21 @@ class DubJob(models.Model):
         path = Path(settings.MEDIA_ROOT) / 'dubbing' / 'jobs' / str(self.pk) / 'work'
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @property
+    def is_podcast(self):
+        """Audio-only episode: natural pacing, MP3 + transcript output (no lip-sync needed)."""
+        kind = self.options.get('kind', 'auto')
+        if kind in ('podcast', 'video'):
+            return kind == 'podcast'
+        return self.state.get('files', {}).get('has_video') is False
+
+    @property
+    def pacing(self):
+        """'natural': lines take the time they need (podcasts). 'sync': lines fit the original slots (video)."""
+        if not self.is_podcast:
+            return 'sync'  # picture: the voice has to stay on the speaker's lips
+        return 'sync' if self.options.get('pacing') == 'sync' else 'natural'
 
     def stage_done(self, stage):
         return stage in self.state.get('done', [])

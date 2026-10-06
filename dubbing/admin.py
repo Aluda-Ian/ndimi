@@ -19,6 +19,10 @@ class DubbingSettingsAdmin(admin.ModelAdmin):
         }),
         ('Voices', {'fields': ('tts_model_id', 'clone_voices', 'default_voice_id')}),
         ('Quality', {'fields': ('review_by_default', 'max_speedup', 'target_loudness_lufs')}),
+        ('Podcasts', {
+            'fields': ('max_podcast_minutes', 'podcast_max_speedup', 'podcast_loudness_lufs', 'podcast_bitrate_kbps'),
+            'description': 'Audio-only uploads are dubbed as podcasts: natural pacing (no lip-sync), MP3 with tags, SRT and a readable transcript.',
+        }),
         ('Limits', {'fields': ('max_duration_minutes', 'max_jobs_per_user_per_day')}),
         ('Server', {'fields': ('ffmpeg_path', 'ffmpeg_status', 'updated_at')}),
     )
@@ -75,7 +79,7 @@ class DubJobAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('id', 'name', 'owner', 'status', 'stage', 'progress', 'error')}),
         ('Source', {'fields': ('source_file', 'source_url', 'source_language', 'target_language', 'engine', 'options')}),
-        ('Output', {'fields': ('dubbed_video', 'dubbed_audio', 'subtitles_target', 'subtitles_source')}),
+        ('Output', {'fields': ('dubbed_video', 'dubbed_audio', 'subtitles_target', 'subtitles_source', 'transcript_target')}),
         ('Worker', {'fields': ('attempts', 'locked_by', 'locked_at', 'run_after', 'duration_seconds',
                                'created_at', 'started_at', 'finished_at', 'state'), 'classes': ('collapse',)}),
     )

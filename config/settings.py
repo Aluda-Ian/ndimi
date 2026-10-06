@@ -179,6 +179,38 @@ STATIC_URL = 'static/'
 # config.views.protected_media, never publicly.
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Shared file storage for production: Cloudflare R2 (S3-compatible). When R2_BUCKET is set,
+# uploads and finished dubs live in the bucket, so the website (Vercel) and the dub worker
+# (its own server) see the same files. Without it, files stay on this computer's disk.
+R2_BUCKET = env('R2_BUCKET')
+if R2_BUCKET:
+    from botocore.config import Config as _BotoConfig
+
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+            'OPTIONS': {
+                'bucket_name': R2_BUCKET,
+                'endpoint_url': env('R2_ENDPOINT') or f"https://{env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
+                'access_key': env('R2_ACCESS_KEY_ID'),
+                'secret_key': env('R2_SECRET_ACCESS_KEY'),
+                'region_name': 'auto',
+                # Only add checksums when required: R2 and browser uploads to signed URLs need this.
+                'client_config': _BotoConfig(signature_version='s3v4', request_checksum_calculation='when_required',
+                                             response_checksum_validation='when_required'),
+                'default_acl': None,          # the bucket stays private
+                'querystring_auth': True,     # links are signed...
+                'querystring_expire': 3600,   # ...and expire after an hour
+                'file_overwrite': False,
+            },
+        },
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+
+# The dub worker's local scratch folder (audio stems, voice lines, mixes). On a hosted worker,
+# point this at a persistent volume (e.g. /data/jobs) so paused jobs can resume after a restart.
+DUB_WORK_ROOT = Path(env('DUB_WORK_ROOT', '/tmp/ndimi-jobs' if env('VERCEL') else str(MEDIA_ROOT / 'dubbing' / 'jobs')))
 # Starting value only; admins change it in System settings.
 MAX_VIDEO_UPLOAD_MB = int(env('MAX_VIDEO_UPLOAD_MB', '500'))
 

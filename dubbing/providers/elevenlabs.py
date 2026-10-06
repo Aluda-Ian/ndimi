@@ -106,49 +106,73 @@ class ElevenLabsTTS:
         return out_path
 
 
-class ElevenLabsDubbing:
-    """End-to-end dubbing: POST /v1/dubbing, poll GET /v1/dubbing/{id}, download /audio/{lang}."""
+# Ndimi stores some languages as ISO 639-3 codes; Dubbing v2 wants BCP-47 base tags.
+BCP47 = {'eng': 'en', 'swa': 'sw', 'swh': 'sw', 'kik': 'ki', 'som': 'so', 'fra': 'fr', 'ara': 'ar'}
 
-    def start(self, *, source_path=None, source_url=None, source_lang=None, target_lang, num_speakers=0, name=''):
+
+def bcp47(code):
+    code = (code or '').strip()
+    return BCP47.get(code.lower(), code) if code and code.lower() != 'auto' else ''
+
+
+class ElevenLabsDubbing:
+    """Dubbing v2 (projects API). The old POST /v1/dubbing endpoint is legacy and rejects
+    languages that only v2 supports (it answers "language code sw is not supported").
+
+    Flow: POST /v1/dubbing/project (with target_language, which also creates the language target)
+    -> GET /v1/dubbing/project/{id} until ready -> GET .../language/{language_id} until completed
+    -> download outputs.lossless_audio (signed URL) -> GET .../language/{language_id}/transcript.
+    """
+
+    def start(self, *, source_path=None, source_url=None, source_lang=None, target_lang, name=''):
         base, headers, creds = _auth()
         data = {
-            'target_lang': target_lang,
-            'source_lang': source_lang or 'auto',
-            'num_speakers': str(num_speakers or 0),
-            'watermark': 'false',
-            'highest_resolution': 'true',
-            'name': name[:100],
+            'target_language': bcp47(target_lang),
+            'model_id': creds['config'].get('dubbing_model_id', 'dubbing_v2'),
+            'reference': (name or '')[:500],
         }
-        if creds['config'].get('drop_background_audio'):
-            data['drop_background_audio'] = 'true'
-        if source_url:
+        if bcp47(source_lang):
+            data['source_language'] = bcp47(source_lang)
+        if source_url and not source_path:
             data['source_url'] = source_url
-            response = request('POST', f'{base}/dubbing', headers=headers, data=data, timeout=600)
+            response = request('POST', f'{base}/dubbing/project', headers=headers, data=data, timeout=600)
         else:
             with open(source_path, 'rb') as fh:
-                response = request('POST', f'{base}/dubbing', headers=headers, data=data,
-                                   files={'file': (Path(source_path).name, fh, 'video/mp4')}, timeout=3600)
+                response = request('POST', f'{base}/dubbing/project', headers=headers, data=data,
+                                   files={'file': (Path(source_path).name, fh, 'application/octet-stream')}, timeout=3600)
         body = response.json()
-        return body['dubbing_id'], body.get('expected_duration_sec')
+        language_ids = body.get('language_ids') or []
+        return body['project_id'], (language_ids[0] if language_ids else None)
 
-    def status(self, dubbing_id):
+    def project(self, project_id):
         base, headers, _ = _auth()
-        body = request('GET', f'{base}/dubbing/{dubbing_id}', headers=headers, timeout=60).json()
-        return body.get('status', ''), body.get('error')
+        return request('GET', f'{base}/dubbing/project/{project_id}', headers=headers, timeout=60).json()
 
-    def download(self, dubbing_id, language, out_path):
+    def add_language(self, project_id, target_lang):
         base, headers, _ = _auth()
-        response = request('GET', f'{base}/dubbing/{dubbing_id}/audio/{language}', headers=headers, timeout=1800, stream=True)
+        body = request('POST', f'{base}/dubbing/project/{project_id}/language', headers=headers,
+                       json={'target_language': bcp47(target_lang)}, timeout=120).json()
+        return body['language_id']
+
+    def language(self, project_id, language_id):
+        base, headers, _ = _auth()
+        return request('GET', f'{base}/dubbing/project/{project_id}/language/{language_id}',
+                       headers=headers, timeout=60).json()
+
+    def download(self, url, out_path):
+        """outputs.* are signed URLs: no API key needed (and none is sent to the storage host)."""
+        response = request('GET', url, timeout=1800, stream=True)
         with open(out_path, 'wb') as fh:
             for chunk in response.iter_content(1024 * 1024):
                 fh.write(chunk)
-        return out_path, response.headers.get('Content-Type', '')
+        return out_path
 
-    def transcript(self, dubbing_id, language, fmt='srt'):
+    def transcript(self, project_id, language_id):
+        """Segments with start_s, end_s, source_text, translation, speaker_id (or [] if unavailable)."""
         base, headers, _ = _auth()
         try:
-            response = request('GET', f'{base}/dubbing/{dubbing_id}/transcript/{language}', headers=headers,
-                               params={'format_type': fmt}, retries=2, timeout=120)
-            return response.text
+            body = request('GET', f'{base}/dubbing/project/{project_id}/language/{language_id}/transcript',
+                           headers=headers, retries=2, timeout=120).json()
         except ProviderError:
-            return None  # subtitles are optional
+            return []  # subtitles are optional
+        return body.get('segments') or []
