@@ -2,7 +2,8 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
-from django.http import FileResponse, Http404, JsonResponse
+from django.core.files.storage import default_storage
+from django.http import Http404, JsonResponse
 from django.utils import timezone
 
 from projects.models import Language
@@ -11,6 +12,7 @@ from system.models import SystemSettings
 
 from .models import DubbingSettings, DubJob
 from .pipeline import delete_job_files, stages_for
+from .storage import is_remote, new_upload_key, presigned_put, serve, upload_key_belongs_to
 
 AUDIO_EXTS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac'}
 VIDEO_EXTS = {'mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'} | AUDIO_EXTS
@@ -124,6 +126,46 @@ def job_dict(job, detail=False):
 
 # ---------- list / create ----------
 
+def _check_upload(filename, size):
+    ext = Path(filename).suffix.lower().lstrip('.')
+    if ext not in VIDEO_EXTS:
+        return f'Unsupported file type .{ext}. Use MP4, MOV, WEBM, MP3, WAV, M4A or FLAC.'
+    max_mb = SystemSettings.load().max_video_upload_mb
+    if size > max_mb * 1024 * 1024:
+        return f'The file is larger than {max_mb} MB.'
+    return None
+
+
+@api_permission_required(USE_TOOL)
+def upload_url(request):
+    """Step 1 of a direct upload: a signed R2 URL the browser PUTs the file to.
+
+    Body: {"filename": "...", "size": bytes, "content_type": "video/mp4"}.
+    Returns {"mode": "direct", "key", "url", "headers"}; then POST /api/dubs/ with upload_key=key.
+    Without R2 (local development) returns {"mode": "form"}: send the file in the normal form instead.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+    if not request.user.has_perm('dubbing.add_dubjob'):
+        return JsonResponse({'error': "Your account can't create dubs yet. Ask an admin."}, status=403)
+    if not is_remote():
+        return JsonResponse({'mode': 'form'})
+    body = _json(request) or {}
+    filename = str(body.get('filename') or '').strip()
+    try:
+        size = int(body.get('size') or 0)
+    except (TypeError, ValueError):
+        size = 0
+    if not filename or size <= 0:
+        return JsonResponse({'error': 'Send filename and size.'}, status=400)
+    problem = _check_upload(filename, size)
+    if problem:
+        return JsonResponse({'error': problem}, status=400)
+    content_type = str(body.get('content_type') or 'application/octet-stream')[:100]
+    key = new_upload_key(request.user, filename)
+    return JsonResponse({'mode': 'direct', 'key': key, 'url': presigned_put(key, content_type),
+                         'headers': {'Content-Type': content_type}})
+
 @api_permission_required(USE_TOOL)
 def dubs(request):
     if request.method == 'GET':
@@ -147,17 +189,26 @@ def _create(request):
 
     post = request.POST
     upload = request.FILES.get('file')
+    upload_key = post.get('upload_key', '').strip()
     source_url = post.get('source_url', '').strip()
-    if not upload and not source_url:
+    if upload_key:
+        # The file was already uploaded straight to storage (see upload_url).
+        if not upload_key_belongs_to(user, upload_key) or not default_storage.exists(upload_key):
+            return JsonResponse({'error': 'The upload was not found. Upload the file again.'}, status=400)
+        problem = _check_upload(upload_key, default_storage.size(upload_key))
+        if problem:
+            default_storage.delete(upload_key)
+            return JsonResponse({'error': problem}, status=400)
+        upload = None
+    upload_name = upload.name if upload else (Path(upload_key).name if upload_key else '')
+    has_file = bool(upload or upload_key)
+    if not has_file and not source_url:
         return JsonResponse({'error': 'Upload a video or podcast episode, or paste a link.'}, status=400)
     if upload:
-        ext = Path(upload.name).suffix.lower().lstrip('.')
-        if ext not in VIDEO_EXTS:
-            return JsonResponse({'error': f'Unsupported file type .{ext}. Use MP4, MOV, WEBM, MP3, WAV, M4A or FLAC.'}, status=400)
-        max_mb = SystemSettings.load().max_video_upload_mb
-        if upload.size > max_mb * 1024 * 1024:
-            return JsonResponse({'error': f'The file is larger than {max_mb} MB.'}, status=400)
-    elif not source_url.startswith(('http://', 'https://')):
+        problem = _check_upload(upload.name, upload.size)
+        if problem:
+            return JsonResponse({'error': problem}, status=400)
+    elif not has_file and not source_url.startswith(('http://', 'https://')):
         return JsonResponse({'error': 'The link must start with https://'}, status=400)
 
     target = post.get('target_language', '').strip()
@@ -169,7 +220,7 @@ def _create(request):
 
     requested = post.get('engine') if user.has_perm('dubbing.choose_dub_engine') else None
     engine = settings.resolve_engine(requested, target)
-    if engine == 'pipeline' and source_url and not upload and ('youtu' in source_url or 'tiktok' in source_url):
+    if engine == 'pipeline' and source_url and not has_file and ('youtu' in source_url or 'tiktok' in source_url):
         return JsonResponse({'error': 'For YouTube or TikTok links, upload the video file instead.'}, status=400)
 
     try:
@@ -181,7 +232,7 @@ def _create(request):
     kind = post.get('kind', 'auto').strip().lower() or 'auto'
     if kind not in KINDS:
         return JsonResponse({'error': 'kind must be auto, video or podcast.'}, status=400)
-    if kind == 'auto' and upload and Path(upload.name).suffix.lower().lstrip('.') in AUDIO_EXTS:
+    if kind == 'auto' and has_file and Path(upload_name).suffix.lower().lstrip('.') in AUDIO_EXTS:
         kind = 'podcast'
     pacing = post.get('pacing', '').strip().lower()
     if pacing and pacing not in ('natural', 'sync'):
@@ -203,12 +254,14 @@ def _create(request):
     if post.get('num_speakers', '').isdigit():
         options['num_speakers'] = max(0, min(32, int(post['num_speakers'])))
 
-    name = (post.get('name') or (upload.name if upload else source_url)).strip()[:200] or 'Untitled dub'
-    job = DubJob(owner=user, name=name, source_url=source_url if not upload else '',
+    name = (post.get('name') or upload_name or source_url).strip()[:200] or 'Untitled dub'
+    job = DubJob(owner=user, name=name, source_url=source_url if not has_file else '',
                  source_language=post.get('source_language', '').strip()[:12],
                  target_language=target, engine=engine, options=options)
     if upload:
         job.source_file.save(Path(upload.name).name, upload, save=False)
+    elif upload_key:
+        job.source_file.name = upload_key
     job.save()
     job.log(f'Queued ({"ElevenLabs Dubbing" if engine == "elevenlabs_dubbing" else "Ndimi pipeline"}, {language.name}).', stage='queued')
     return JsonResponse({'dub': job_dict(job, detail=True)}, status=201)
@@ -381,7 +434,7 @@ def download(request, job_id, kind):
     if not field:
         raise Http404('File not ready.')
     as_attachment = request.GET.get('download') == '1'
-    return FileResponse(field.open('rb'), as_attachment=as_attachment, filename=Path(field.name).name)
+    return serve(field, as_attachment=as_attachment)
 
 
 @api_permission_required(USE_TOOL)
@@ -390,4 +443,4 @@ def segment_audio(request, job_id, index):
     seg = job.segments.filter(index=index).first()
     if seg is None or not seg.audio:
         raise Http404('No audio for this line yet.')
-    return FileResponse(seg.audio.open('rb'), content_type='audio/mpeg')
+    return serve(seg.audio, content_type='audio/mpeg')

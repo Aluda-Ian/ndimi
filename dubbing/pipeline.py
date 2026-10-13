@@ -29,6 +29,7 @@ from .models import DubbingSettings, DubJob, Segment, Speaker
 from .providers import ProviderError, get_separator, get_stt, get_translator, get_tts
 from .providers.elevenlabs import ElevenLabsDubbing
 from .providers.local import NoSeparator
+from .storage import delete_prefix, keep_local_copy, local_path
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ def _save_state(job):
 
 def _source_path(job):
     if job.source_file:
-        return job.source_file.path
+        return local_path(job.source_file, job.workdir)
     if not job.source_url:
         raise ValueError('This job has no source file or link.')
     # Download direct media links (YouTube pages are only supported by the ElevenLabs engine).
@@ -387,9 +388,9 @@ def stage_synthesize(job, ctx):
                 if seg.audio:
                     seg.audio.delete(save=False)
                 seg.audio.save(f'{seg.index:05d}.mp3', File(fh), save=False)
+            keep_local_copy(seg.audio, path, job.workdir)
             seg.audio_duration, seg.speed, seg.overflow, seg.status = round(duration, 3), speed, overflow, 'ready'
             seg.save(update_fields=['audio', 'audio_duration', 'speed', 'overflow', 'status'])
-            Path(path).unlink(missing_ok=True)
             done += 1
             job.refresh_from_db(fields=['cancel_requested'])
             if job.cancel_requested:
@@ -407,7 +408,7 @@ def stage_mix(job, ctx):
     files = _files(job)
     placements = []
     for seg in job.segments.filter(status='ready').exclude(audio=''):
-        samples = ff.change_speed(ff.load_speech(seg.audio.path), seg.speed)
+        samples = ff.change_speed(ff.load_speech(local_path(seg.audio, job.workdir)), seg.speed)
         placements.append((samples, seg.start))
     voice = ff.build_voice_track(placements, job.duration_seconds, str(job.workdir / 'voice.wav'))
     keep = job.options.get('keep_background', True)
@@ -429,7 +430,7 @@ def _mix_natural(job, ctx):
 
     def clip(index):
         seg = ready.get(index)
-        return ff.change_speed(ff.load_speech(seg.audio.path), seg.speed) if seg else None
+        return ff.change_speed(ff.load_speech(local_path(seg.audio, job.workdir)), seg.speed) if seg else None
 
     durations = {i: (s.audio_duration or 0.0) / max(s.speed, 0.01) for i, s in ready.items()}
     keep = job.options.get('keep_background', True)
@@ -550,7 +551,7 @@ PIPELINE_FUNCS = {
 
 def stage_el_submit(job, ctx):
     api = ElevenLabsDubbing()
-    source_path = job.source_file.path if job.source_file else None
+    source_path = local_path(job.source_file, job.workdir) if job.source_file else None
     project_id, language_id = api.start(
         source_path=source_path, source_url=job.source_url or None, source_lang=job.source_language or None,
         target_lang=job.target_language, name=job.name,
@@ -617,7 +618,7 @@ def stage_el_download(job, ctx):
         api.download(job.state['el_output'], dubbed)
 
     # v2 returns audio only. Put it back on the picture when we have the original video.
-    source = job.source_file.path if job.source_file else None
+    source = local_path(job.source_file, job.workdir) if job.source_file else None
     source_info = ff.info(source) if source else {'has_video': False}
     job.duration_seconds = ff.info(dubbed)['duration']
     if source_info['has_video']:
@@ -655,4 +656,15 @@ def delete_job_files(job):
         except Exception as error:  # best effort
             logger.warning('Could not delete cloned voice %s: %s', speaker.voice_id, error)
     from django.conf import settings as django_settings
-    shutil.rmtree(Path(django_settings.MEDIA_ROOT) / 'dubbing' / 'jobs' / str(job.pk), ignore_errors=True)
+    for field in (job.source_file, job.dubbed_video, job.dubbed_audio, job.subtitles_target,
+                  job.subtitles_source, job.transcript_target):
+        if field:
+            try:
+                field.delete(save=False)
+            except Exception as error:  # best effort
+                logger.warning('Could not delete %s: %s', field.name, error)
+    try:
+        delete_prefix(f'dubbing/jobs/{job.pk}')
+    except Exception as error:
+        logger.warning('Could not delete stored files for job %s: %s', job.pk, error)
+    shutil.rmtree(Path(django_settings.DUB_WORK_ROOT) / str(job.pk), ignore_errors=True)

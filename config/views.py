@@ -56,6 +56,15 @@ def protected_media(request, path):
         raise Http404('File not found.')
     if path.startswith('dubbing/'):
         raise Http404('File not found.')  # dub files are served by /api/dubs/ with ownership checks
+    from dubbing.storage import is_remote, serve_name
+
+    if is_remote():
+        # Files live in R2: send a short-lived signed link (Vercel can't stream large files).
+        from django.core.files.storage import default_storage
+
+        if '..' in path or not default_storage.exists(path):
+            raise Http404('File not found.')
+        return serve_name(path, mimetypes.guess_type(path)[0])
     root = Path(settings.MEDIA_ROOT).resolve()
     target = (root / path).resolve()
     if not target.is_relative_to(root) or not target.is_file():

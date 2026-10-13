@@ -140,7 +140,8 @@ class DubJob(models.Model):
 
     @property
     def workdir(self):
-        path = Path(settings.MEDIA_ROOT) / 'dubbing' / 'jobs' / str(self.pk) / 'work'
+        # Local scratch space for the worker (DUB_WORK_ROOT). Finished files go to storage (disk or R2).
+        path = Path(settings.DUB_WORK_ROOT) / str(self.pk) / 'work'
         path.mkdir(parents=True, exist_ok=True)
         return path
 

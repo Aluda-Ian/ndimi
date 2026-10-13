@@ -1,0 +1,30 @@
+# Ndimi dub worker: runs `python manage.py run_dub_worker` on an always-on server
+# (Railway, Render, Fly.io or any VPS). The website stays on Vercel; both share the
+# Neon database (DATABASE_URL) and Cloudflare R2 (R2_* variables).
+FROM python:3.11-slim
+
+# ffmpeg does all audio/video work.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Demucs (best voice/music separation) adds ~1 GB (PyTorch, CPU build).
+# Build with WITH_DEMUCS=1 to include it; otherwise pick "ElevenLabs isolator" or "ducking"
+# as the separation option in Dubbing settings.
+ARG WITH_DEMUCS=0
+RUN if [ "$WITH_DEMUCS" = "1" ]; then \
+      pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu \
+      && pip install --no-cache-dir demucs; \
+    fi
+
+COPY . .
+
+ENV PYTHONUNBUFFERED=1 \
+    DUB_WORK_ROOT=/data/jobs
+
+# Apply database migrations, then work the queue forever. The host restarts it if it stops.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py run_dub_worker --name ${WORKER_NAME:-cloud-worker}"]

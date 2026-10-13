@@ -135,7 +135,7 @@ class WorkerHeartbeatTests(TestCase):
 
 
 @skipUnless(HAS_FFMPEG, 'ffmpeg is not installed')
-@override_settings(MEDIA_ROOT=MEDIA)
+@override_settings(MEDIA_ROOT=MEDIA, DUB_WORK_ROOT=Path(MEDIA) / 'dubbing' / 'jobs')
 class PipelineTests(TestCase):
     def setUp(self):
         from projects.models import Language
@@ -239,6 +239,76 @@ class PipelineTests(TestCase):
         data = self.client.get(f'/api/dubs/{job.pk}/').json()['dub']
         self.assertTrue(data['outputs']['transcript'])
         self.assertEqual(self.client.get(data['outputs']['transcript']).status_code, 200)
+
+    def test_direct_upload_key_flow(self):
+        """Production path: the browser uploads to storage first, then creates the dub with upload_key."""
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        # Disk storage answers "form" (send the file in the normal form).
+        r = self.client.post('/api/dubs/uploads/', {'filename': 'clip.mp4', 'size': 1000}, content_type='application/json')
+        self.assertEqual(r.json()['mode'], 'form')
+
+        path = Path(MEDIA) / 'in.mp4'
+        make_video(str(path))
+        key = default_storage.save(f'dubbing/uploads/{self.user.pk}/abc/clip.mp4', ContentFile(path.read_bytes()))
+        # Someone else's key is refused.
+        bad = self.client.post('/api/dubs/', {'upload_key': 'dubbing/uploads/999/x/clip.mp4', 'target_language': 'luo'})
+        self.assertEqual(bad.status_code, 400)
+        r = self.client.post('/api/dubs/', {'upload_key': key, 'target_language': 'luo', 'review': 'false'})
+        self.assertEqual(r.status_code, 201, r.content)
+        job = DubJob.objects.get(pk=r.json()['dub']['id'])
+        self.assertEqual(job.source_file.name, key)
+        self.assertTrue(run_once('test'))
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+
+    def test_elevenlabs_dubbing_v2_flow(self):
+        from .pipeline import ELEVENLABS_STAGES  # noqa: F401
+
+        cfg = DubbingSettings.load()
+        cfg.default_engine = 'elevenlabs_dubbing'
+        cfg.save()
+        job = self._create(review=False)
+        self.assertEqual(job.engine, 'elevenlabs_dubbing')
+        dubbed = Path(MEDIA) / 'el.wav'
+        make_episode(str(dubbed))
+
+        class FakeDubbing:
+            ready = False
+
+            def start(self, **kw):
+                assert kw['target_lang'] == 'luo'
+                return 'p1', 'l1'
+
+            def project(self, pid):
+                return {'status': 'ready'}
+
+            def language(self, pid, lid):
+                if not FakeDubbing.ready:
+                    return {'status': 'processing'}
+                return {'status': 'completed', 'outputs': {'lossless_audio': 'https://signed/x'}}
+
+            def download(self, url, out):
+                shutil.copy(dubbed, out)
+                return out
+
+            def transcript(self, pid, lid):
+                return [{'start_s': 0.5, 'end_s': 2.0, 'source_text': 'Hello', 'translation': 'Amosi'}]
+
+        with mock.patch('dubbing.pipeline.ElevenLabsDubbing', FakeDubbing):
+            run_once('test')
+            job.refresh_from_db()
+            self.assertEqual(job.status, 'queued')  # polling later, worker not blocked
+            FakeDubbing.ready = True
+            job.run_after = None
+            job.save()
+            run_once('test')
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+        self.assertTrue(job.dubbed_video.name.endswith('.mp4'))
+        self.assertTrue(FFmpeg().info(job.dubbed_video.path)['has_video'])
+        self.assertEqual(job.segments.get().translated_text, 'Amosi')
 
     def test_provider_failure_retries_then_fails(self):
         from .providers import ProviderError

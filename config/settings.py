@@ -49,15 +49,19 @@ for _var in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL')
     if _host:
         ALLOWED_HOSTS.append(_host)
         CSRF_TRUSTED_ORIGINS.append(f'https://{_host}')
-if env('VERCEL'):
+# On Railway, trust the public address Railway gives the service.
+if env('RAILWAY_PUBLIC_DOMAIN'):
+    ALLOWED_HOSTS.append(env('RAILWAY_PUBLIC_DOMAIN'))
+    CSRF_TRUSTED_ORIGINS.append(f"https://{env('RAILWAY_PUBLIC_DOMAIN')}")
+if env('VERCEL') or env('RAILWAY_ENVIRONMENT'):
     # The production domain, so the site works even before env vars are set.
     for _host in ('ndimi.jeotamedia.co.ke', 'www.ndimi.jeotamedia.co.ke'):
         if _host not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(_host)
             CSRF_TRUSTED_ORIGINS.append(f'https://{_host}')
-    # Never show Django's debug pages on Vercel unless explicitly turned on.
+    # Never show Django's debug pages in production unless explicitly turned on.
     DEBUG = env('DJANGO_DEBUG', 'false').lower() in ('1', 'true', 'yes', 'on')
-    # Vercel terminates HTTPS and forwards the original scheme in this header.
+    # Vercel and Railway terminate HTTPS and forward the original scheme in this header.
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -82,6 +86,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # serves /static/ (admin CSS/JS) from the app itself
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -174,6 +179,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # filled by `collectstatic` when the web service starts
+WHITENOISE_USE_FINDERS = True  # still works where collectstatic hasn't run (Vercel, local)
+
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 
 # Uploaded files (demo videos). Served only to signed-in users by
 # config.views.protected_media, never publicly.
@@ -187,25 +199,22 @@ R2_BUCKET = env('R2_BUCKET')
 if R2_BUCKET:
     from botocore.config import Config as _BotoConfig
 
-    STORAGES = {
-        'default': {
-            'BACKEND': 'storages.backends.s3.S3Storage',
-            'OPTIONS': {
-                'bucket_name': R2_BUCKET,
-                'endpoint_url': env('R2_ENDPOINT') or f"https://{env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
-                'access_key': env('R2_ACCESS_KEY_ID'),
-                'secret_key': env('R2_SECRET_ACCESS_KEY'),
-                'region_name': 'auto',
-                # Only add checksums when required: R2 and browser uploads to signed URLs need this.
-                'client_config': _BotoConfig(signature_version='s3v4', request_checksum_calculation='when_required',
-                                             response_checksum_validation='when_required'),
-                'default_acl': None,          # the bucket stays private
-                'querystring_auth': True,     # links are signed...
-                'querystring_expire': 3600,   # ...and expire after an hour
-                'file_overwrite': False,
-            },
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'bucket_name': R2_BUCKET,
+            'endpoint_url': env('R2_ENDPOINT') or f"https://{env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
+            'access_key': env('R2_ACCESS_KEY_ID'),
+            'secret_key': env('R2_SECRET_ACCESS_KEY'),
+            'region_name': 'auto',
+            # Only add checksums when required: R2 and browser uploads to signed URLs need this.
+            'client_config': _BotoConfig(signature_version='s3v4', request_checksum_calculation='when_required',
+                                         response_checksum_validation='when_required'),
+            'default_acl': None,          # the bucket stays private
+            'querystring_auth': True,     # links are signed...
+            'querystring_expire': 3600,   # ...and expire after an hour
+            'file_overwrite': False,
         },
-        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
     }
 
 # The dub worker's local scratch folder (audio stems, voice lines, mixes). On a hosted worker,

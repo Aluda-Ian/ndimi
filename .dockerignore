@@ -1,0 +1,10 @@
+.git
+.venv
+.env
+.claude
+db.sqlite3
+media/
+ml/
+**/__pycache__
+*.py[cod]
+staticfiles/

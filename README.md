@@ -170,11 +170,52 @@ All endpoints except health need a signed-in session (`401` otherwise) and *Can 
 
 Uploaded videos are stored in the `media/` folder and served only to signed-in users.
 
-Start MongoDB locally or set `MONGO_URI` in `.env` to a MongoDB Atlas connection string. For production, set `DATABASE_URL` to a persistent Postgres database as well; dub jobs, segments, users, and settings use Django's relational database. Uploaded media currently uses `MEDIA_ROOT`, so production deployments need persistent shared media storage for files and generated outputs.
+Start MongoDB locally or set `MONGO_URI` in `.env` to a MongoDB Atlas connection string. For production, set `DATABASE_URL` to a persistent Postgres database as well; dub jobs, segments, users, and settings use Django's relational database. In production, files live in Cloudflare R2 (see Deployment).
 
 ## Deployment
 
-Run `python manage.py migrate` against the production `DATABASE_URL` before deploying schema changes. Deploy the Django application and keep a `python manage.py run_dub_worker` process running on an always-on worker host; Vercel functions cannot keep this worker alive. The admin Overview reports worker heartbeat and FFmpeg readiness and refreshes while open. Static-only hosting of `index.html` is not supported: without `/api/config/`, the app disables project creation rather than falling back to a simulated demo. Use persistent relational storage (`DATABASE_URL`) and persistent media storage for production.
+Everything runs on Railway, built from this GitHub repo with one `Dockerfile`:
+
+| Piece | Where | What it does |
+|---|---|---|
+| Website + API | Railway service `web` (`SERVICE_ROLE=web`) | gunicorn; pages, admin, `/api/`. Never runs dubs. |
+| Dub worker | Railway service `worker` (`SERVICE_ROLE=worker`) | ffmpeg + `run_dub_worker`, always on; applies migrations on start. |
+| Database | Neon Postgres (`DATABASE_URL`) | Jobs, users, settings. The queue lives here. |
+| Files | Cloudflare R2 (`R2_*`) | Uploads and finished dubs, shared by both services. |
+
+### 1. Cloudflare R2 bucket
+
+1. Cloudflare dashboard > R2 > Create bucket (e.g. `ndimi-media`). Keep it private.
+2. R2 > Manage API tokens > Create token with **Object Read & Write** on that bucket. Note the Access Key ID, Secret Access Key and your Account ID.
+3. Bucket > Settings > CORS policy, so browsers can upload straight to it:
+
+```json
+[{"AllowedOrigins": ["https://ndimi.jeotamedia.co.ke", "https://<your-web-service>.up.railway.app"], "AllowedMethods": ["PUT", "GET", "HEAD"],
+  "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600}]
+```
+
+### 2. Environment variables (same values on both Railway services)
+
+`DATABASE_URL`, `DJANGO_SECRET_KEY`, `FIELD_ENCRYPTION_KEY`, `MONGO_URI`, `R2_BUCKET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
+Without `R2_BUCKET` files stay on local disk (fine for development on one computer).
+
+### 3. Railway
+
+1. railway.com > New project > Deploy from GitHub repo > pick this repo. Rename the service `worker`.
+2. worker > Variables: the shared variables above, plus `SERVICE_ROLE=worker`.
+3. worker > right-click > Attach volume, mount path `/data` (scratch space, `DUB_WORK_ROOT=/data/jobs`), so jobs waiting for review can resume after a restart.
+4. Deploy. In the admin Overview the "Dub worker offline" warning disappears within 15 seconds. Stop any worker running on your own computer.
+5. New > GitHub repo > the same repo again. Rename it `web`. Variables: the shared variables plus `SERVICE_ROLE=web`.
+6. web > Settings > Networking > Generate domain, and open it to test sign-in, the admin and a dub.
+7. web > Settings > Networking > Custom domain: `ndimi.jeotamedia.co.ke`. Railway shows a CNAME (and a TXT record to verify). Add them in DirectAdmin > DNS management, replacing the Vercel record. Keep the Vercel project for a week as a fallback, then delete it.
+
+Size: 2 GB RAM is enough for the ElevenLabs engine and ducking. For Demucs separation, set `WITH_DEMUCS=1` on the worker and give it 4 GB+. More dubs at once: add a second worker service with its own volume (a volume belongs to one service).
+
+### How files move
+
+- The studio asks `/api/dubs/uploads/` for a signed URL and uploads the file straight to R2 (the web server never handles big files), then creates the dub with `upload_key`.
+- The worker copies the source into `DUB_WORK_ROOT`, processes it, and saves the outputs to R2.
+- Downloads and players get a signed R2 link that expires after an hour.
 
 ## Using the demo
 

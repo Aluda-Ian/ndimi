@@ -779,6 +779,21 @@ function uploadForm(url,form,onProgress){return new Promise((res,rej)=>{const x=
   x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch(e){}if(x.status===401){location.href='/accounts/login/?next=/';return;}
     x.status<300?res(d):rej(new Error(d.error||('Upload failed ('+x.status+')')));};
   x.onerror=()=>rej(new Error('Upload failed. Check your connection.'));x.send(form);});}
+function putFile(url,blob,headers,onProgress){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('PUT',url);
+  Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));
+  x.upload.onprogress=e=>{if(e.lengthComputable)onProgress(e.loaded/e.total);};
+  x.onload=()=>x.status<300?res():rej(new Error('Upload to storage failed ('+x.status+'). Check the R2 bucket CORS settings.'));
+  x.onerror=()=>rej(new Error('Upload to storage failed. Check your connection, or the R2 bucket CORS settings.'));x.send(blob);});}
+/* Large files go straight to storage (R2) with a signed URL; the server only gets the key. */
+async function sendSource(fd,onProgress){
+  if(state.source==='file'&&state.userOrigBlob){
+    const blob=state.userOrigBlob;
+    const u=await api('/api/dubs/uploads/',{method:'POST',json:{filename:state.sourceName,size:blob.size,content_type:blob.type||'application/octet-stream'}});
+    if(u.mode==='direct'){await putFile(u.url,blob,u.headers,onProgress);fd.append('upload_key',u.key);return uploadForm('/api/dubs/',fd,()=>{});}
+    fd.append('file',blob,state.sourceName);
+  }else fd.append('source_url',state.sourceName);
+  return uploadForm('/api/dubs/',fd,onProgress);
+}
 function realMode(){return server.mode==='server'&&server.user&&server.user.can_dub;}
 document.querySelectorAll('.switch').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-checked',String(b.getAttribute('aria-checked')!=='true'))));
 /* ---------- helpers ---------- */
@@ -860,8 +875,6 @@ let poll=null;
 const FINAL=['completed','failed','cancelled','review'];
 async function realDub(){
   const fd=new FormData();
-  if(state.source==='file'&&state.userOrigBlob)fd.append('file',state.userOrigBlob,state.sourceName);
-  else fd.append('source_url',state.sourceName);
   fd.append('name',$('projName').value.trim()||'Untitled dub');
   fd.append('target_language',state.lang);
   fd.append('source_language',$('srcLang').value);
@@ -872,7 +885,7 @@ async function realDub(){
   $('procLog').textContent='';$('procLog').classList.remove('err');$('skip').classList.add('hidden');
   show('vProc');$('createBtn').disabled=true;
   try{
-    const d=await uploadForm('/api/dubs/',fd,p=>{$('steps').firstChild.lastChild.textContent='Uploading '+Math.round(p*100)+'%';$('barFill').style.width=(p*5)+'%';});
+    const d=await sendSource(fd,p=>{$('steps').firstChild.lastChild.textContent='Uploading '+Math.round(p*100)+'%';$('barFill').style.width=(p*5)+'%';});
     state.jobSourceFor=d.dub.id;trackJob(d.dub);
   }catch(e){$('procLog').textContent=e.message;$('procLog').classList.add('err');$('skip').textContent='Back';$('skip').classList.remove('hidden');$('skip').onclick=()=>show('vNew');}
   finally{checkReady();}
@@ -1494,7 +1507,8 @@ const DOCS_ENDPOINTS=[
   {m:'GET',p:'/api/projects/',n:'List own projects (all with Can see every user\'s projects)'},
   {m:'POST',p:'/api/projects/',n:'Create project — body: {"name":"…","target_language":"…"}'},
   {m:'GET',p:'/api/dubs/',n:'List dub jobs for current user'},
-  {m:'POST',p:'/api/dubs/',n:'Create dub — multipart: file or source_url, target_language, source_language, review, clone_voices, num_speakers, glossary JSON'},
+  {m:'POST',p:'/api/dubs/uploads/',n:'Get a signed upload URL (R2) — JSON: filename, size, content_type. PUT the file there, then create the dub with upload_key'},
+  {m:'POST',p:'/api/dubs/',n:'Create dub — multipart: file, upload_key or source_url, target_language, source_language, review, clone_voices, num_speakers, glossary JSON'},
   {m:'GET',p:'/api/dubs/<id>/',n:'Job status, stages, speakers, transcript lines, events'},
   {m:'DELETE',p:'/api/dubs/<id>/',n:'Delete job (also removes cloned voices from ElevenLabs)'},
   {m:'PATCH',p:'/api/dubs/<id>/segments/<n>/',n:'Edit transcript segment — translated_text, speaker_id, start, end'},
