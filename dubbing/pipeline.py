@@ -28,8 +28,9 @@ from .engine.types import Transcript, Word
 from .models import DubbingSettings, DubJob, Segment, Speaker
 from .providers import ProviderError, get_separator, get_stt, get_translator, get_tts
 from .providers.elevenlabs import ElevenLabsDubbing
+from .providers.sync import SyncLipsync
 from .providers.local import NoSeparator
-from .storage import delete_prefix, keep_local_copy, local_path
+from .storage import delete_prefix, is_remote, keep_local_copy, local_path
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,12 @@ ELEVENLABS_STAGES = [
     ('el_submit', 'Uploading to ElevenLabs', 5),
     ('el_wait', 'ElevenLabs is dubbing', 10),
     ('el_download', 'Downloading the dub', 92),
+]
+# Optional, after either engine: re-animate mouths to match the new voice (Sync).
+LIPSYNC_STAGES = [
+    ('ls_submit', 'Preparing lip sync', 90),
+    ('ls_wait', 'Matching lips to the new voice', 92),
+    ('ls_download', 'Saving the lip-synced video', 98),
 ]
 ISO3 = {'eng': 'en', 'swa': 'sw', 'kik': 'ki', 'som': 'so', 'fra': 'fr', 'ara': 'ar', 'luo': 'luo', 'kln': 'kln', 'mas': 'mas'}
 MAX_ATTEMPTS = 3
@@ -77,10 +84,14 @@ WHISPER_CHUNK_SECONDS = 20 * 60
 
 def stages_for(job):
     if job.engine == 'elevenlabs_dubbing':
-        return ELEVENLABS_STAGES
-    if job.is_podcast:
+        stages = ELEVENLABS_STAGES
+    elif job.is_podcast:
         return [(key, PODCAST_LABELS.get(key, label), progress) for key, label, progress in PIPELINE_STAGES]
-    return PIPELINE_STAGES
+    else:
+        stages = PIPELINE_STAGES
+    if job.options.get('lip_sync'):
+        stages = stages + LIPSYNC_STAGES
+    return stages
 
 
 # ---------- runner ----------
@@ -92,7 +103,7 @@ def run_job(job):
     if not job.started_at:
         job.started_at = timezone.now()
         job.save(update_fields=['started_at'])
-    stage_funcs = {**PIPELINE_FUNCS, **ELEVENLABS_FUNCS}
+    stage_funcs = {**PIPELINE_FUNCS, **ELEVENLABS_FUNCS, **LIPSYNC_FUNCS}
     try:
         for name, label, progress in stages_for(job):
             job.refresh_from_db(fields=['cancel_requested', 'state', 'options'])
@@ -618,8 +629,11 @@ def stage_el_download(job, ctx):
         api.download(job.state['el_output'], dubbed)
 
     # v2 returns audio only. Put it back on the picture when we have the original video.
-    source = local_path(job.source_file, job.workdir) if job.source_file else None
+    source = _original_video(job)
     source_info = ff.info(source) if source else {'has_video': False}
+    if not source_info['has_video']:
+        job.log('No original video file, so this dub is audio only. Upload the video file (not a page link) '
+                'to get a dubbed video.', level='warning')
     job.duration_seconds = ff.info(dubbed)['duration']
     if source_info['has_video']:
         _replace(job.dubbed_video, f'{_slug(job)}-{lang}.mp4', ff.mux(source, dubbed, str(work / 'el_dub.mp4')))
@@ -645,6 +659,129 @@ def stage_el_download(job, ctx):
 ELEVENLABS_FUNCS = {'el_submit': stage_el_submit, 'el_wait': stage_el_wait, 'el_download': stage_el_download}
 
 
+def _original_video(job):
+    """Local path of the original media. Direct media links are downloaded and kept, so lip sync can use them."""
+    if job.source_file:
+        return local_path(job.source_file, job.workdir)
+    if not job.source_url or 'youtu' in job.source_url or 'tiktok' in job.source_url:
+        return None
+    try:
+        path = _source_path(job)
+    except (ValueError, requests.RequestException, OSError) as error:
+        logger.info('Could not fetch the original media for job %s: %s', job.pk, error)
+        return None
+    with open(path, 'rb') as fh:
+        job.source_file.save(Path(job.source_url.split('?')[0]).name or 'source.mp4', File(fh), save=False)
+    job.save(update_fields=['source_file'])
+    return path
+
+
+# ---------- lip sync (Sync) ----------
+
+LIPSYNC_POLL_SECONDS = 20
+LIPSYNC_MAX_HOURS = 3
+
+
+def _lipsync_state(job):
+    return job.state.setdefault('lipsync', {})
+
+
+def _lipsync_failed(job, message):
+    """Lip sync is an extra: if it fails, the dub itself stays finished and downloadable."""
+    info = _lipsync_state(job)
+    info.update(status='failed', error=str(message)[:500])
+    _save_state(job)
+    job.log(f'Lip sync failed: {message}', level='warning')
+
+
+def _lipsync_step(func):
+    def run(job, ctx):
+        if _lipsync_state(job).get('status') == 'failed':
+            return  # skip the remaining lip sync steps
+        try:
+            return func(job, ctx)
+        except ProviderError as error:
+            info = _lipsync_state(job)
+            if error.retryable and info.get('retries', 0) < 5:
+                info['retries'] = info.get('retries', 0) + 1
+                _save_state(job)
+                raise Paused(status='queued', retry_in=60 * info['retries'])
+            _lipsync_failed(job, error)
+    return run
+
+
+@_lipsync_step
+def stage_ls_submit(job, ctx):
+    from django.core.files.storage import default_storage
+
+    ff = ctx['ff']
+    if not job.dubbed_video or not job.source_file:
+        return _lipsync_failed(job, 'Lip sync needs a dubbed video made from an uploaded video file.')
+    if not is_remote():
+        return _lipsync_failed(job, 'Lip sync needs cloud storage (R2), so the lip sync service can fetch the files.')
+    work = job.workdir
+    # The new voice track, as its own file (Sync takes the video and the audio separately).
+    audio = str(work / 'lipsync_audio.mp3')
+    ff.run(['-i', local_path(job.dubbed_video, work), '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', audio])
+    key = f'dubbing/jobs/{job.pk}/lipsync/voice-{int(timezone.now().timestamp())}.mp3'
+    with open(audio, 'rb') as fh:
+        key = default_storage.save(key, File(fh))
+    Path(audio).unlink(missing_ok=True)
+    expire = 6 * 3600  # long enough for Sync's queue
+    generation_id = SyncLipsync().start(
+        video_url=default_storage.url(job.source_file.name, expire=expire),
+        audio_url=default_storage.url(key, expire=expire),
+        name=f'{_slug(job)}-{job.target_language}-lipsync',
+        idempotency_key=f'ndimi-{job.pk}-lipsync-{_lipsync_state(job).get("round", 1)}',
+    )
+    info = _lipsync_state(job)
+    info.update(status='running', id=generation_id, started=timezone.now().isoformat(), error='')
+    _save_state(job)
+    job.log(f'Lip sync started (Sync generation {generation_id}).')
+
+
+@_lipsync_step
+def stage_ls_wait(job, ctx):
+    from datetime import datetime
+
+    info = _lipsync_state(job)
+    body = SyncLipsync().get(info['id'])
+    status = str(body.get('status', '')).upper()
+    if status == 'COMPLETED' and body.get('outputUrl'):
+        info['output'] = body['outputUrl']
+        _save_state(job)
+        return
+    if status in ('FAILED', 'REJECTED', 'CANCELED', 'CANCELLED'):
+        return _lipsync_failed(job, body.get('error') or body.get('errorCode') or status.lower())
+    elapsed = (timezone.now() - datetime.fromisoformat(info['started'])).total_seconds()
+    if elapsed > LIPSYNC_MAX_HOURS * 3600:
+        return _lipsync_failed(job, f'Sync took more than {LIPSYNC_MAX_HOURS} hours.')
+    expected = max((job.duration_seconds or 60) * 2, 60)
+    job.set_stage('ls_wait', 92 + int(5 * min(elapsed / expected, 0.97)))
+    raise Paused(status='queued', retry_in=LIPSYNC_POLL_SECONDS)
+
+
+@_lipsync_step
+def stage_ls_download(job, ctx):
+    info = _lipsync_state(job)
+    path = str(job.workdir / 'lipsync.mp4')
+    try:
+        SyncLipsync().download(info['output'], path)
+    except ProviderError:
+        # The output link may have expired: ask for a fresh one once.
+        info['output'] = SyncLipsync().get(info['id']).get('outputUrl') or info['output']
+        _save_state(job)
+        SyncLipsync().download(info['output'], path)
+    _replace(job.lipsync_video, f'{_slug(job)}-{job.target_language}-lipsync.mp4', path)
+    info.update(status='completed', error='')
+    _save_state(job)
+    job.save()
+    job.log('Lip-synced video ready.', stage='ls_download')
+
+
+LIPSYNC_FUNCS = {'ls_submit': stage_ls_submit, 'ls_wait': stage_ls_wait, 'ls_download': stage_ls_download}
+
+
 # ---------- cleanup ----------
 
 def delete_job_files(job):
@@ -657,7 +794,7 @@ def delete_job_files(job):
             logger.warning('Could not delete cloned voice %s: %s', speaker.voice_id, error)
     from django.conf import settings as django_settings
     for field in (job.source_file, job.dubbed_video, job.dubbed_audio, job.subtitles_target,
-                  job.subtitles_source, job.transcript_target):
+                  job.subtitles_source, job.transcript_target, job.lipsync_video):
         if field:
             try:
                 field.delete(save=False)

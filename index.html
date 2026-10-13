@@ -657,6 +657,7 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
             <div class="seg" role="group" aria-label="Audio track">
               <button aria-pressed="false" id="abOrig">Original · English</button>
               <button aria-pressed="true" id="abDub">Kiswahili</button>
+              <button aria-pressed="false" id="abLip" class="hidden" title="Mouths re-animated to match the new voice">Lip sync</button>
             </div>
             <span class="time" id="clock">0:00 / 0:00</span>
           </div>
@@ -891,7 +892,8 @@ async function realDub(){
   finally{checkReady();}
 }
 function renderJobProgress(job){
-  $('procTitle').textContent=(job.status==='failed'?'Dub failed: ':'Dubbing into ')+langNameOf(job.target_language);$('procSub').textContent=job.name;
+  const lip=String(job.stage||'').startsWith('ls_');
+  $('procTitle').textContent=(job.status==='failed'?'Dub failed: ':lip?'Lip-syncing to ':'Dubbing into ')+langNameOf(job.target_language);$('procSub').textContent=job.name;
   $('steps').innerHTML=(job.stages||[]).map(st=>`<li class="${st.state==='done'?'done':st.state==='active'?'run':''}"><span class="dot">${st.state==='done'?'✓':''}</span>${st.label}</li>`).join('');
   $('barFill').style.width=job.progress+'%';
   const last=(job.events||[]).slice(-1)[0];
@@ -926,8 +928,11 @@ async function openJob(job){
   if(state.dubURL)URL.revokeObjectURL(state.dubURL);
   state.dubURL=null;state.dubBlob=null;
   if(dubUrl){const b=await fetchBlob(dubUrl);if(b)setDub(b);}else{state.dubBlob=null;state.dubURL=null;}
+  state.lipURL=job.outputs.lipsync_video||null;
+  $('abLip').classList.toggle('hidden',!state.lipURL);
+  $('stageEmpty').textContent=job.outputs.audio&&!job.outputs.video?'This dub is audio only. Dub the uploaded video file (not a link) to get a dubbed video.':'The video could not be loaded. Refresh the page to try again.';
   $('demoNote').classList.add('hidden');
-  show('vStudio');setTrack(state.dubURL?'dub':'orig',true);renderLines();updateJobBar();
+  show('vStudio');setTrack(state.lipURL?'lip':state.dubURL?'dub':'orig',true);renderLines();updateJobBar();
   computePeaks('orig',state.userOrigBlob||state.origBlob);computePeaks('dub',state.dubBlob);
 }
 function updateJobBar(){
@@ -937,10 +942,15 @@ function updateJobBar(){
   $('scriptHint').textContent=job.editable?'Tap a line to jump. Edit the translation in place.':'Tap a line to jump.';
   if(job.status==='review'){bar.classList.remove('hidden');$('jobBarText').textContent='Check the translation, then generate the voices.';btn.textContent='Approve script';btn.onclick=()=>jobAction(job,'approve');}
   else if(job.editable&&changed){bar.classList.remove('hidden');$('jobBarText').textContent=changed===1?'1 edited line needs a new voice.':changed+' edited lines need new voices.';btn.textContent='Regenerate';btn.onclick=()=>jobAction(job,'regenerate');}
+  else if(lipOffer(job)){const ls=job.lipsync;bar.classList.remove('hidden');
+    $('jobBarText').textContent=(ls.status==='failed'?'Lip sync failed: '+(ls.error||'unknown error')+'. ':'Make the mouths match the '+langNameOf(job.target_language)+' voice. ')+'About $'+ls.estimate_usd.toFixed(2)+' with Sync.';
+    btn.textContent=ls.status==='failed'?'Try lip sync again':'Lip sync';btn.onclick=()=>{if(!ls.configured){toast('Turn on "Sync (lip sync)" in Settings > Integrations first.');return;}
+      if(confirm('Lip sync this video with Sync? It costs about $'+ls.estimate_usd.toFixed(2)+' and takes a few minutes.'))jobAction(job,'lipsync');};}
   else bar.classList.add('hidden');
-  $('exportBtn').textContent=job.outputs.video?'Download video':job.outputs.audio?'Download audio':'Export video';
+  $('exportBtn').textContent=job.outputs.video||job.outputs.lipsync_video?'Download video':job.outputs.audio?'Download audio':'Export video';
   $('shareBtn').textContent=job.outputs.subtitles?'Subtitles (.srt)':'Share for review';
 }
+function lipOffer(job){const ls=job.lipsync;return !!(ls&&ls.available&&job.status==='completed'&&job.outputs.video&&!job.outputs.lipsync_video&&(ls.status==='none'||ls.status==='failed'||ls.status==='done'));}
 async function saveLine(s,text){
   const job=state.job;if(!job||!job.editable||text===s.sw)return;
   try{const d=await api(`/api/dubs/${job.id}/segments/${s.index}/`,{method:'PATCH',json:{translated_text:text}});
@@ -975,13 +985,14 @@ async function ytLoad(id,at,play){
   P.ytId=id;}
 function srcFor(t){
   const demo=!state.job; /* YouTube links are for the demo, not for real dub jobs */
+  if(t==='lip')return state.job&&state.lipURL?{url:state.lipURL}:null;
   if(t==='dub')return demo&&state.dubYT?{yt:state.dubYT}:(state.dubURL?{url:state.dubURL}:null);
   if(state.source==='file'&&state.userOrig)return {url:state.userOrig};
   return demo&&state.origYT?{yt:state.origYT}:(state.origURL?{url:state.origURL}:null);}
 function hasDub(){return !!srcFor('dub');}
 function setTrack(t,first){
-  state.track=t;$('abOrig').setAttribute('aria-pressed',t==='orig');$('abDub').setAttribute('aria-pressed',t==='dub');
-  $('trkOrig').classList.toggle('on',t==='orig');$('trkDub').classList.toggle('on',t==='dub');
+  state.track=t;$('abOrig').setAttribute('aria-pressed',t==='orig');$('abDub').setAttribute('aria-pressed',t==='dub');$('abLip').setAttribute('aria-pressed',t==='lip');
+  $('trkOrig').classList.toggle('on',t==='orig');$('trkDub').classList.toggle('on',t!=='orig');
   const src=srcFor(t);
   $('stageEmpty').classList.toggle('hidden',!!src);
   const at=first?0:P.t,playing=!first&&!P.paused;
@@ -994,7 +1005,7 @@ function setTrack(t,first){
   if(vid.src!==url){vid.src=url;vid.addEventListener('loadedmetadata',function h(){vid.removeEventListener('loadedmetadata',h);try{vid.currentTime=Math.min(at,vid.duration||at)}catch(e){}if(playing)vid.play().catch(()=>{});},{once:true});}
   else{try{vid.currentTime=at}catch(e){}if(playing)vid.play().catch(()=>{});}
 }
-$('abOrig').onclick=()=>setTrack('orig');$('abDub').onclick=()=>{if(!hasDub()){toast('No dubbed video yet. An admin adds it in demo setup.');return;}setTrack('dub');};
+$('abOrig').onclick=()=>setTrack('orig');$('abLip').onclick=()=>{if(state.lipURL)setTrack('lip');};$('abDub').onclick=()=>{if(!hasDub()){toast('No dubbed video yet. An admin adds it in demo setup.');return;}setTrack('dub');};
 
 function renderLines(){
   const box=$('lines');
@@ -1016,7 +1027,7 @@ function activeLine(){const t=P.t;let a=-1;state.segs.forEach((s,i)=>{if(t>=s.t)
   [...$('lines').children].forEach((el,i)=>{const on=i===a;if(on&&!el.classList.contains('active')&&!P.paused)el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.toggle('active',on);});}
 vid.addEventListener('timeupdate',()=>{if(P.mode!=='video')return;$('clock').textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration);activeLine();});
 setInterval(()=>{if(P.mode==='yt'&&P.yt&&P.yt.getCurrentTime&&!$('vStudio').classList.contains('hidden')){$('clock').textContent=fmt(P.t)+' / '+fmt(P.d);activeLine();}},300);
-$('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&(j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'No export is available for this dub yet.');};
+$('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&((state.track!=='dub'&&j.outputs.lipsync_video)||j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'No export is available for this dub yet.');};
 $('shareBtn').onclick=()=>{const j=state.job;if(j&&realMode()&&j.outputs.subtitles){location.href=j.outputs.subtitles+'?download=1';}else toast('No subtitle export is available for this dub yet.');};
 
 /* ---------- waveforms ---------- */
@@ -1516,6 +1527,7 @@ const DOCS_ENDPOINTS=[
   {m:'POST',p:'/api/dubs/<id>/approve/',n:'Approve reviewed script → generate voices'},
   {m:'POST',p:'/api/dubs/<id>/regenerate/',n:'Re-voice lines marked needs new voice and re-render'},
   {m:'POST',p:'/api/dubs/<id>/cancel/',n:'Cancel a running job'},
+  {m:'POST',p:'/api/dubs/<id>/lipsync/',n:'Lip sync a finished video dub with Sync (needs the Sync integration and R2). Output: outputs.lipsync_video'},
   {m:'POST',p:'/api/dubs/<id>/retry/',n:'Retry a failed job (skips completed stages)'},
   {m:'GET',p:'/api/dubs/<id>/download/video|audio|subtitles|source/',n:'Stream or download output — add ?download=1 to force save'},
 ];

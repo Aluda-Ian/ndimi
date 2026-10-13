@@ -310,6 +310,52 @@ class PipelineTests(TestCase):
         self.assertTrue(FFmpeg().info(job.dubbed_video.path)['has_video'])
         self.assertEqual(job.segments.get().translated_text, 'Amosi')
 
+    def test_lipsync_after_dub(self):
+        """A finished video dub can be lip-synced; a lip sync failure never breaks the dub."""
+        from django.core.files.storage import default_storage
+
+        job = self._create(review=False)
+        self.assertTrue(run_once('test'))
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+        lipsynced = Path(MEDIA) / 'lipsynced.mp4'
+        make_video(str(lipsynced))
+
+        class FakeSync:
+            done = False
+
+            def start(self, **kw):
+                assert kw['video_url'].startswith('https://') and kw['audio_url'].startswith('https://')
+                return 'gen-1'
+
+            def get(self, gid):
+                return {'status': 'COMPLETED', 'outputUrl': 'https://out/x.mp4'} if FakeSync.done else {'status': 'PROCESSING'}
+
+            def download(self, url, out):
+                shutil.copy(lipsynced, out)
+                return out
+
+        with mock.patch('dubbing.api.is_remote', return_value=True), \
+                mock.patch('dubbing.pipeline.is_remote', return_value=True), \
+                mock.patch('dubbing.providers.sync.settings', return_value={'api_key': 'k', 'config': {}}), \
+                mock.patch.object(default_storage, 'url', return_value='https://r2/signed'), \
+                mock.patch('dubbing.pipeline.SyncLipsync', FakeSync):
+            data = self.client.get(f'/api/dubs/{job.pk}/').json()['dub']
+            self.assertTrue(data['lipsync']['available'])
+            r = self.client.post(f'/api/dubs/{job.pk}/lipsync/', {}, content_type='application/json')
+            self.assertEqual(r.status_code, 200, r.content)
+            run_once('test')
+            job.refresh_from_db()
+            self.assertEqual(job.status, 'queued')  # waiting on Sync without blocking the worker
+            FakeSync.done = True
+            job.run_after = None
+            job.save()
+            run_once('test')
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+        self.assertTrue(job.lipsync_video.name.endswith('-lipsync.mp4'))
+        self.assertEqual(self.client.get(f'/api/dubs/{job.pk}/').json()['dub']['lipsync']['status'], 'completed')
+
     def test_provider_failure_retries_then_fails(self):
         from .providers import ProviderError
 

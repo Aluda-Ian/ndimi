@@ -12,6 +12,7 @@ from system.models import SystemSettings
 
 from .models import DubbingSettings, DubJob
 from .pipeline import delete_job_files, stages_for
+from .providers import sync as sync_provider
 from .storage import is_remote, new_upload_key, presigned_put, serve, upload_key_belongs_to
 
 AUDIO_EXTS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac'}
@@ -95,6 +96,7 @@ def job_dict(job, detail=False):
             'source_subtitles': _url(job, 'source-subtitles') if job.subtitles_source else None,
             'source': _url(job, 'source') if job.source_file else None,
             'transcript': _url(job, 'transcript') if job.transcript_target else None,
+            'lipsync_video': _url(job, 'lipsync') if job.lipsync_video else None,
         },
     }
     if job.is_podcast:
@@ -103,6 +105,15 @@ def job_dict(job, detail=False):
             'show_notes': job.state.get('show_notes') or {},
         }
     if detail:
+        info = job.state.get('lipsync') or {}
+        data['lipsync'] = {
+            'status': info.get('status', 'done' if job.lipsync_video else 'none'),
+            'error': info.get('error', ''),
+            # Possible when there is a dubbed video and the original video to re-animate.
+            'available': bool(job.dubbed_video and job.source_file and is_remote()),
+            'configured': sync_provider.settings() is not None,
+            'estimate_usd': sync_provider.estimate_usd(job.duration_seconds),
+        }
         data['stages'] = _stages(job)
         data['speakers'] = [
             {'id': s.pk, 'label': s.label, 'name': s.name, 'voice_id': s.voice_id, 'cloned': s.cloned}
@@ -333,7 +344,42 @@ def regenerate(request, job):
 
 
 @_post_action
+def lipsync(request, job):
+    """Re-animate the mouths in the finished dub to match the new voice (Sync). Charged per second by Sync."""
+    if job.status in DubJob.ACTIVE:
+        return JsonResponse({'error': 'This dub is still processing.'}, status=409)
+    if job.status != 'completed' or not job.dubbed_video:
+        return JsonResponse({'error': 'Lip sync works on a finished dubbed video.'}, status=400)
+    if not job.source_file:
+        return JsonResponse({'error': 'Lip sync needs the original video file. Dub an uploaded video, not a link.'}, status=400)
+    if not is_remote():
+        return JsonResponse({'error': 'Lip sync needs cloud storage (R2) so the lip sync service can fetch the video.'}, status=400)
+    if sync_provider.settings() is None:
+        return JsonResponse({'error': 'Turn on "Sync (lip sync)" in Settings > Integrations and add its API key first.'}, status=400)
+    previous = job.state.get('lipsync') or {}
+    job.state['lipsync'] = {'status': 'queued', 'round': int(previous.get('round', 0)) + 1}
+    job.options['lip_sync'] = True
+    job.attempts = 0
+    job.save(update_fields=['state', 'options', 'attempts', 'updated_at'])
+    job.reset_stages('ls_submit', 'ls_wait', 'ls_download')
+    job.progress, job.stage = 88, 'ls_submit'
+    job.requeue()
+    job.log(f'Lip sync requested by {request.user.get_username()} '
+            f'(about ${sync_provider.estimate_usd(job.duration_seconds)}).', stage='ls_submit')
+    return JsonResponse({'dub': job_dict(job, detail=True)})
+
+
+@_post_action
 def cancel(request, job):
+    if job.status == 'queued' and str(job.stage).startswith('ls_') and job.dubbed_video:
+        # Stopping a lip sync keeps the finished dub.
+        job.state.setdefault('lipsync', {}).update(status='failed', error='Cancelled.')
+        job.state['done'] = list(set(job.state.get('done', [])) | {'ls_submit', 'ls_wait', 'ls_download'})
+        job.status, job.progress, job.run_after = 'completed', 100, None
+        job.finished_at = timezone.now()
+        job.save()
+        job.log(f'Lip sync cancelled by {request.user.get_username()}.', level='warning')
+        return JsonResponse({'dub': job_dict(job, detail=True)})
     if job.status == 'review' or job.status == 'queued':
         job.status = 'cancelled'
         job.finished_at = timezone.now()
@@ -429,7 +475,7 @@ def download(request, job_id, kind):
     field = {
         'video': job.dubbed_video, 'audio': job.dubbed_audio, 'subtitles': job.subtitles_target,
         'source-subtitles': job.subtitles_source, 'source': job.source_file,
-        'transcript': job.transcript_target,
+        'transcript': job.transcript_target, 'lipsync': job.lipsync_video,
     }.get(kind)
     if not field:
         raise Http404('File not ready.')
