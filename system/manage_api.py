@@ -27,7 +27,7 @@ RESOURCES = [
     ('roadmap', 'Project roadmap', 'Project', 'system.RoadmapTask', 'roadmap'),
     ('milestones', 'Milestones', 'Project', 'system.Milestone', 'collection'),
     ('roadmap-tasks', 'Roadmap tasks', 'Project', 'system.RoadmapTask', 'collection'),
-    ('email', 'Email (SMTP)', 'Configuration', 'system.EmailSettings', 'singleton'),
+    ('email', 'Email (Resend / SMTP)', 'Configuration', 'system.EmailSettings', 'singleton'),
     ('integrations', 'Integrations & API keys', 'Configuration', 'system.Integration', 'collection'),
     ('dubbing', 'Dubbing engine', 'Configuration', 'dubbing.DubbingSettings', 'singleton'),
     ('system', 'System', 'Configuration', 'system.SystemSettings', 'singleton'),

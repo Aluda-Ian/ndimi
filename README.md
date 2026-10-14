@@ -211,6 +211,16 @@ Without `R2_BUCKET` files stay on local disk (fine for development on one comput
 
 Size: 2 GB RAM is enough for the ElevenLabs engine and ducking. For Demucs separation, set `WITH_DEMUCS=1` on the worker and give it 4 GB+. More dubs at once: add a second worker service with its own volume (a volume belongs to one service).
 
+### 4. Email (Resend)
+
+Railway blocks outgoing SMTP on the Hobby plan, so the site sends email through **Resend** over HTTPS.
+
+1. Sign up at resend.com. In **Domains → Add Domain** add `ndimi.jeotamedia.co.ke`, add the DNS records it shows (DKIM TXT on `resend._domainkey`, MX and TXT on `send`) in HostPinnacle DNS, and click **Verify**. Leave the existing MX/SPF records alone.
+2. **API Keys → Create API Key** (Sending access). It starts with `re_`.
+3. In Ndimi: **Settings → Email (Resend / SMTP)**: Send through = **Resend**, paste the key, From address `no-reply@ndimi.jeotamedia.co.ke`, **Save and send test email**, then tick **Enabled**.
+
+The full walkthrough is in the app under **How-to guides → Setting up email (Resend or SMTP)**. SMTP settings stay saved and are used when Send through is SMTP (local development, Railway Pro).
+
 ### How files move
 
 - The studio asks `/api/dubs/uploads/` for a signed URL and uploads the file straight to R2 (the web server never handles big files), then creates the dub with `upload_key`.

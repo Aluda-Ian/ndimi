@@ -1,38 +1,25 @@
-"""Send email over HTTPS instead of SMTP.
+"""Send email with Resend over HTTPS instead of SMTP.
 
 Railway (Hobby and Trial plans) blocks outbound SMTP, so connecting to a mail server on
-port 587/465 times out. Transactional email services accept mail over HTTPS (port 443),
-which is never blocked. Turn one on in Settings > Integrations & API keys:
+port 587/465 times out. Resend accepts mail over HTTPS (port 443), which is never blocked.
+Choose it in Settings > Email > "Send through" and paste a Resend API key there.
 
-- Resend  (slug "resend"):  POST https://api.resend.com/emails       Authorization: Bearer <key>
-- Brevo   (slug "brevo"):   POST https://api.brevo.com/v3/smtp/email  api-key: <key>
-
-The From address (Settings > Email) must be on a domain you have verified with that service.
+API: POST https://api.resend.com/emails with "Authorization: Bearer <key>" and JSON
+{"from", "to", "subject", "text", "html", "cc", "bcc", "reply_to"}. Docs: https://resend.com/docs/api-reference
+The From address must be on a domain verified in Resend (Domains page).
 """
 import logging
-from email.utils import parseaddr
 
 import requests
 from django.core.mail.backends.base import BaseEmailBackend
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = ('resend', 'brevo')
-NAMES = {'resend': 'Resend', 'brevo': 'Brevo'}
+RESEND_URL = 'https://api.resend.com/emails'
 
 
-def active_provider():
-    """(slug, credentials) of the first email API integration that is turned on, or (None, None)."""
-    from .models import Integration
-
-    for slug in PROVIDERS:
-        try:
-            creds = Integration.credentials(slug)
-        except Exception:  # missing table during migrations
-            return None, None
-        if creds and creds.get('api_key'):
-            return slug, creds
-    return None, None
+class EmailAPIError(Exception):
+    pass
 
 
 def _html(message):
@@ -46,14 +33,19 @@ def _text(message):
     return None if getattr(message, 'content_subtype', 'plain') == 'html' else message.body
 
 
-class EmailAPIError(Exception):
-    pass
+# What Resend's common errors mean, in plain words for the admin.
+HINTS = {
+    401: 'The API key is wrong or was deleted. Create a new one in Resend > API Keys.',
+    403: 'The From address is not on a domain verified in Resend. Verify the domain or change the From address.',
+    422: 'Resend rejected the message. Check the From address (e.g. no-reply@ndimi.jeotamedia.co.ke).',
+    429: 'Too many emails at once, or the daily limit of your Resend plan was reached.',
+}
 
 
-class HTTPSEmailBackend(BaseEmailBackend):
-    def __init__(self, provider, creds, timeout=20, fail_silently=False, **kwargs):
+class ResendBackend(BaseEmailBackend):
+    def __init__(self, api_key, timeout=20, fail_silently=False, **kwargs):
         super().__init__(fail_silently=fail_silently, **kwargs)
-        self.provider, self.creds, self.timeout = provider, creds, timeout
+        self.api_key, self.timeout = api_key, timeout
 
     def send_messages(self, email_messages):
         sent = 0
@@ -62,46 +54,28 @@ class HTTPSEmailBackend(BaseEmailBackend):
                 self._send(message)
                 sent += 1
             except Exception as error:
-                logger.warning('Email to %s via %s failed: %s', message.to, self.provider, error)
+                logger.warning('Email to %s via Resend failed: %s', message.to, error)
                 if not self.fail_silently:
                     raise
         return sent
 
     def _send(self, message):
-        recipients = [r for r in message.recipients() if r]
-        if not recipients:
+        if not [r for r in message.recipients() if r]:
             return
-        base = (self.creds.get('base_url') or '').rstrip('/')
-        key = self.creds['api_key']
+        body = {'from': message.from_email, 'to': message.to, 'subject': message.subject}
+        if message.cc:
+            body['cc'] = message.cc
+        if message.bcc:
+            body['bcc'] = message.bcc
+        if message.reply_to:
+            body['reply_to'] = message.reply_to
         html, text = _html(message), _text(message)
-        if self.provider == 'resend':
-            body = {'from': message.from_email, 'to': message.to, 'subject': message.subject}
-            if message.cc:
-                body['cc'] = message.cc
-            if message.bcc:
-                body['bcc'] = message.bcc
-            if message.reply_to:
-                body['reply_to'] = message.reply_to
-            if html:
-                body['html'] = html
-            if text:
-                body['text'] = text
-            url, headers = f'{base or "https://api.resend.com"}/emails', {'Authorization': f'Bearer {key}'}
-        else:  # brevo
-            name, address = parseaddr(message.from_email)
-            sender = {'email': address, **({'name': name} if name else {})}
-            body = {'sender': sender, 'to': [{'email': a} for a in message.to], 'subject': message.subject}
-            if message.cc:
-                body['cc'] = [{'email': a} for a in message.cc]
-            if message.bcc:
-                body['bcc'] = [{'email': a} for a in message.bcc]
-            if message.reply_to:
-                body['replyTo'] = {'email': parseaddr(message.reply_to[0])[1]}
-            if html:
-                body['htmlContent'] = html
-            if text:
-                body['textContent'] = text
-            url, headers = f'{base or "https://api.brevo.com/v3"}/smtp/email', {'api-key': key}
-        response = requests.post(url, json=body, headers={**headers, 'Accept': 'application/json'}, timeout=self.timeout)
+        if html:
+            body['html'] = html
+        if text:
+            body['text'] = text
+        response = requests.post(RESEND_URL, json=body, timeout=self.timeout,
+                                 headers={'Authorization': f'Bearer {self.api_key}', 'Accept': 'application/json'})
         if response.status_code >= 400:
-            raise EmailAPIError(f'{NAMES[self.provider]} returned {response.status_code}: {response.text[:300]}')
+            hint = HINTS.get(response.status_code, '')
+            raise EmailAPIError(f'Resend returned {response.status_code}: {response.text[:200]} {hint}'.strip())

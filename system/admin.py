@@ -52,6 +52,12 @@ class EmailSettingsForm(forms.ModelForm):
         help_text='Leave blank to keep the saved password.',
     )
     clear_password = forms.BooleanField(required=False, label='Remove saved password')
+    resend_api_key = forms.CharField(
+        label='Resend API key', required=False, strip=True,
+        widget=forms.PasswordInput(render_value=False, attrs={'autocomplete': 'off', 'placeholder': 're_...'}),
+        help_text='Starts with re_. Saved encrypted and never shown again.',
+    )
+    clear_resend_api_key = forms.BooleanField(required=False, label='Remove saved Resend API key')
 
     class Meta:
         model = EmailSettings
@@ -61,11 +67,27 @@ class EmailSettingsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.fields['password'].help_text = crypto.mask(self.instance.password) + ' Leave blank to keep it.'
+            self.fields['resend_api_key'].help_text = (crypto.mask(self.instance.resend_api_key)
+                                                       + ' Leave blank to keep it. Starts with re_.')
+
+    def clean_resend_api_key(self):
+        key = self.cleaned_data.get('resend_api_key', '')
+        if key and not key.startswith('re_'):
+            raise forms.ValidationError('A Resend API key starts with "re_". Copy it again from Resend > API Keys.')
+        return key
 
     def clean(self):
         data = super().clean()
-        if data.get('enabled') and not data.get('host'):
-            self.add_error('host', 'Enter the SMTP host before turning email on.')
+        if data.get('enabled'):
+            if data.get('provider') == 'resend':
+                has_key = data.get('resend_api_key') or (self.instance.resend_api_key and not data.get('clear_resend_api_key'))
+                if not has_key:
+                    self.add_error('resend_api_key', 'Paste your Resend API key before turning email on.')
+                if not data.get('from_email'):
+                    self.add_error('from_email', 'Resend needs a From address on your verified domain, '
+                                                 'e.g. no-reply@ndimi.jeotamedia.co.ke.')
+            elif not data.get('host'):
+                self.add_error('host', 'Enter the SMTP host before turning email on.')
         return data
 
     def save(self, commit=True):
@@ -74,6 +96,10 @@ class EmailSettingsForm(forms.ModelForm):
             obj.password = ''
         elif self.cleaned_data.get('password'):
             obj.password = self.cleaned_data['password']
+        if self.cleaned_data.get('clear_resend_api_key'):
+            obj.resend_api_key = ''
+        elif self.cleaned_data.get('resend_api_key'):
+            obj.resend_api_key = self.cleaned_data['resend_api_key']
         if commit:
             obj.save()
         return obj
@@ -84,10 +110,30 @@ class EmailSettingsAdmin(SingletonAdmin):
     form = EmailSettingsForm
     readonly_fields = ('last_test_at', 'last_test_result', 'updated_at', 'updated_by')
     fieldsets = (
-        (None, {'fields': ('enabled',)}),
-        ('Server', {'fields': ('host', 'port', 'security', 'timeout')}),
-        ('Login', {'fields': ('username', 'password', 'clear_password')}),
-        ('Sender', {'fields': ('from_name', 'from_email')}),
+        (None, {
+            'fields': ('enabled', 'provider'),
+            'description': 'Choose how emails (password resets, sign-up confirmations, security alerts) leave the site. '
+                           'On Railway choose Resend: Railway blocks SMTP on the Hobby plan, so SMTP tests time out.',
+        }),
+        ('Resend', {
+            'fields': ('resend_api_key', 'clear_resend_api_key'),
+            'description': 'Set up once: 1) Create a free account at resend.com. '
+                           '2) Domains > Add Domain > ndimi.jeotamedia.co.ke. '
+                           '3) Add the DNS records Resend shows in HostPinnacle > DNS Management (keep your existing MX and SPF). '
+                           '4) Click Verify in Resend and wait for "Verified". '
+                           '5) API Keys > Create API Key (Sending access) and paste it below. '
+                           '6) Set the From address under Sender to an address on that domain, then Save and send test email. '
+                           'Full guide: How-to guides > Setting up email.',
+        }),
+        ('SMTP server', {
+            'fields': ('host', 'port', 'security', 'timeout'),
+            'description': 'Only used when "Send through" is SMTP (e.g. on your own computer, or on Railway Pro).',
+        }),
+        ('SMTP login', {'fields': ('username', 'password', 'clear_password')}),
+        ('Sender', {
+            'fields': ('from_name', 'from_email'),
+            'description': 'With Resend, the From address must be on the domain you verified in Resend.',
+        }),
         ('Status', {'fields': ('last_test_at', 'last_test_result', 'updated_at', 'updated_by')}),
     )
 
@@ -102,11 +148,14 @@ class EmailSettingsAdmin(SingletonAdmin):
         if not to:
             self.message_user(request, 'Add an email address to your own account first, then send the test.', messages.ERROR)
             return
-        provider = obj.api_provider
-        if not provider and not obj.host:
-            self.message_user(request, 'Enter the SMTP host first, or turn on Resend or Brevo in Integrations.', messages.ERROR)
+        via = obj.provider_name
+        if not obj.configured:
+            self.message_user(request, 'Paste your Resend API key first.' if obj.provider == 'resend'
+                              else 'Enter the SMTP host first, or switch "Send through" to Resend.', messages.ERROR)
             return
-        via = {'resend': 'Resend', 'brevo': 'Brevo'}.get(provider, 'SMTP')
+        if obj.provider == 'resend' and not obj.from_email:
+            self.message_user(request, 'Enter a From address on your Resend-verified domain first.', messages.ERROR)
+            return
         message = EmailMessage(
             subject=f'Test email from {obj.from_name or "Ndimi"}',
             body=f'Your email settings work ({via}). Password resets and other emails will be sent this way.',
@@ -121,9 +170,9 @@ class EmailSettingsAdmin(SingletonAdmin):
                 result += ' Email is still turned off. Tick "Enabled" to start sending.'
         except Exception as error:  # show any SMTP/network error to the admin
             result, level = f'Failed ({via}): {error}', messages.ERROR
-            if not provider and ('timed out' in str(error).lower() or 'timeout' in str(error).lower()):
-                result += (' The server may block SMTP (Railway does on Hobby plans). '
-                           'Turn on Resend or Brevo in Integrations to send over HTTPS.')
+            if obj.provider == 'smtp' and ('timed out' in str(error).lower() or 'timeout' in str(error).lower()):
+                result += (' The server may block SMTP (Railway does on the Hobby plan). '
+                           'Switch "Send through" to Resend.')
         obj.last_test_at = timezone.now()
         obj.last_test_result = result[:255]
         obj.save(update_fields=['last_test_at', 'last_test_result'])

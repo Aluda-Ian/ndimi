@@ -70,11 +70,20 @@ class SystemSettings(SingletonModel):
 
 class EmailSettings(SingletonModel):
     SECURITY_CHOICES = [('tls', 'STARTTLS (usually port 587)'), ('ssl', 'SSL/TLS (usually port 465)'), ('none', 'None')]
+    PROVIDER_CHOICES = [
+        ('resend', 'Resend (HTTPS, works on Railway)'),
+        ('smtp', 'SMTP server (blocked on Railway Hobby)'),
+    ]
 
     enabled = models.BooleanField(
         default=False,
         help_text='Off: emails (like password resets) are printed in the server console instead of sent.',
     )
+    provider = models.CharField(
+        'Send through', max_length=8, choices=PROVIDER_CHOICES, default='smtp',
+        help_text='Resend sends over HTTPS. Use it on Railway, which blocks SMTP on the Hobby plan.',
+    )
+    resend_api_key_encrypted = models.TextField(blank=True, editable=False)
     host = models.CharField('SMTP host', max_length=255, blank=True, help_text='e.g. smtp.gmail.com, mail.jeotamedia.com')
     port = models.PositiveIntegerField(default=587)
     security = models.CharField(max_length=4, choices=SECURITY_CHOICES, default='tls')
@@ -89,11 +98,19 @@ class EmailSettings(SingletonModel):
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
     class Meta:
-        verbose_name = 'email (SMTP) settings'
-        verbose_name_plural = 'email (SMTP) settings'
+        verbose_name = 'email settings'
+        verbose_name_plural = 'email settings'
 
     def __str__(self):
-        return 'Email (SMTP) settings'
+        return 'Email settings'
+
+    @property
+    def resend_api_key(self):
+        return crypto.decrypt(self.resend_api_key_encrypted)
+
+    @resend_api_key.setter
+    def resend_api_key(self, value):
+        self.resend_api_key_encrypted = crypto.encrypt(value)
 
     @property
     def password(self):
@@ -110,24 +127,27 @@ class EmailSettings(SingletonModel):
         return f'{self.from_name} <{self.from_email}>' if self.from_name else self.from_email
 
     @property
-    def api_provider(self):
-        """Slug of the email API integration in use (Resend/Brevo), or None to use SMTP."""
-        from .email_api import active_provider
-
-        return active_provider()[0]
+    def configured(self):
+        """The chosen route has what it needs: a Resend API key, or an SMTP host."""
+        if self.provider == 'resend':
+            return bool(self.resend_api_key)
+        return bool(self.host)
 
     @property
     def ready(self):
-        """True when emails will really be sent (enabled, with an email API or an SMTP host)."""
-        return self.enabled and bool(self.api_provider or self.host)
+        """True when emails will really be sent."""
+        return self.enabled and self.configured
+
+    @property
+    def provider_name(self):
+        return 'Resend' if self.provider == 'resend' else 'SMTP'
 
     def connection(self, fail_silently=False):
-        """An email API over HTTPS when one is turned on in Integrations, otherwise SMTP."""
-        from .email_api import HTTPSEmailBackend, active_provider
+        """Resend over HTTPS, or the SMTP server, depending on "Send through"."""
+        if self.provider == 'resend':
+            from .email_api import ResendBackend
 
-        provider, creds = active_provider()
-        if provider:
-            return HTTPSEmailBackend(provider, creds, timeout=self.timeout, fail_silently=fail_silently)
+            return ResendBackend(self.resend_api_key, timeout=self.timeout, fail_silently=fail_silently)
         return self.smtp_connection(fail_silently=fail_silently)
 
     def smtp_connection(self, fail_silently=False):
