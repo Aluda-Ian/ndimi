@@ -56,7 +56,7 @@ def dashboard_stats(user):
             from system.models import EmailSettings
 
             email = EmailSettings.load()
-            data['email'] = {'enabled': email.enabled and bool(email.host), 'last_test': email.last_test_result}
+            data['email'] = {'enabled': email.ready, 'last_test': email.last_test_result}
         if user.has_perm('system.view_systemsettings'):
             from system.models import SystemSettings
 

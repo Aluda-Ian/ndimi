@@ -102,23 +102,28 @@ class EmailSettingsAdmin(SingletonAdmin):
         if not to:
             self.message_user(request, 'Add an email address to your own account first, then send the test.', messages.ERROR)
             return
-        if not obj.host:
-            self.message_user(request, 'Enter the SMTP host first.', messages.ERROR)
+        provider = obj.api_provider
+        if not provider and not obj.host:
+            self.message_user(request, 'Enter the SMTP host first, or turn on Resend or Brevo in Integrations.', messages.ERROR)
             return
+        via = {'resend': 'Resend', 'brevo': 'Brevo'}.get(provider, 'SMTP')
         message = EmailMessage(
             subject=f'Test email from {obj.from_name or "Ndimi"}',
-            body='Your SMTP settings work. Password resets and other emails will be sent this way.',
+            body=f'Your email settings work ({via}). Password resets and other emails will be sent this way.',
             from_email=obj.formatted_from or None,
             to=[to],
-            connection=obj.smtp_connection(),
+            connection=obj.connection(),
         )
         try:
             message.send()
-            result, level = f'Sent to {to}.', messages.SUCCESS
+            result, level = f'Sent to {to} via {via}.', messages.SUCCESS
             if not obj.enabled:
                 result += ' Email is still turned off. Tick "Enabled" to start sending.'
         except Exception as error:  # show any SMTP/network error to the admin
-            result, level = f'Failed: {error}', messages.ERROR
+            result, level = f'Failed ({via}): {error}', messages.ERROR
+            if not provider and ('timed out' in str(error).lower() or 'timeout' in str(error).lower()):
+                result += (' The server may block SMTP (Railway does on Hobby plans). '
+                           'Turn on Resend or Brevo in Integrations to send over HTTPS.')
         obj.last_test_at = timezone.now()
         obj.last_test_result = result[:255]
         obj.save(update_fields=['last_test_at', 'last_test_result'])

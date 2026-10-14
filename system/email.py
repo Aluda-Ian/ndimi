@@ -23,7 +23,7 @@ class DatabaseEmailBackend(BaseEmailBackend):
         except DatabaseError:
             cfg = None
 
-        if cfg is None or not cfg.enabled or not cfg.host:
+        if cfg is None or not cfg.ready:
             return ConsoleBackend(fail_silently=self.fail_silently).send_messages(email_messages)
 
         if cfg.formatted_from:
@@ -31,4 +31,5 @@ class DatabaseEmailBackend(BaseEmailBackend):
                 if not message.from_email or message.from_email == settings.DEFAULT_FROM_EMAIL:
                     message.from_email = cfg.formatted_from
 
-        return cfg.smtp_connection(fail_silently=self.fail_silently).send_messages(email_messages)
+        # An email API (HTTPS) when one is turned on: hosts like Railway block outbound SMTP.
+        return cfg.connection(fail_silently=self.fail_silently).send_messages(email_messages)

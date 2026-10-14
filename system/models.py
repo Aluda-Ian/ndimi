@@ -109,6 +109,27 @@ class EmailSettings(SingletonModel):
             return ''
         return f'{self.from_name} <{self.from_email}>' if self.from_name else self.from_email
 
+    @property
+    def api_provider(self):
+        """Slug of the email API integration in use (Resend/Brevo), or None to use SMTP."""
+        from .email_api import active_provider
+
+        return active_provider()[0]
+
+    @property
+    def ready(self):
+        """True when emails will really be sent (enabled, with an email API or an SMTP host)."""
+        return self.enabled and bool(self.api_provider or self.host)
+
+    def connection(self, fail_silently=False):
+        """An email API over HTTPS when one is turned on in Integrations, otherwise SMTP."""
+        from .email_api import HTTPSEmailBackend, active_provider
+
+        provider, creds = active_provider()
+        if provider:
+            return HTTPSEmailBackend(provider, creds, timeout=self.timeout, fail_silently=fail_silently)
+        return self.smtp_connection(fail_silently=fail_silently)
+
     def smtp_connection(self, fail_silently=False):
         from django.core.mail.backends.smtp import EmailBackend
 
