@@ -149,6 +149,8 @@ class PipelineTests(TestCase):
         cfg = DubbingSettings.load()
         cfg.separation = 'duck'
         cfg.default_engine = 'pipeline'
+        # Fixed providers (mocked below); automatic model choice has its own tests.
+        cfg.stt_provider, cfg.translation_provider, cfg.tts_provider = 'elevenlabs', 'openai', 'elevenlabs'
         cfg.default_voice_id = 'default-voice'  # speakers in the test clip talk too briefly to clone
         cfg.save()
         self.client.force_login(self.user)
@@ -408,3 +410,65 @@ class PipelineTests(TestCase):
         job.refresh_from_db()
         self.assertEqual(job.status, 'queued')  # scheduled retry
         self.assertIsNotNone(job.run_after)
+
+
+class AutomaticModelChoiceTests(TestCase):
+    """Settings > AI models: per-language choice by licence, coverage, setup and priority."""
+
+    def setUp(self):
+        from system.models import Integration
+
+        for slug, base in (('ndimi-models', 'https://models.example'), ('openai', ''), ('elevenlabs', '')):
+            integration, _ = Integration.objects.get_or_create(slug=slug, defaults={'name': slug})
+            integration.enabled, integration.base_url = True, base or integration.base_url
+            integration.api_key = 'key'
+            integration.save()
+
+    def _enable(self, *keys):
+        from .models import AIModel
+
+        AIModel.objects.filter(key__in=keys).update(enabled=True)
+
+    def test_seeded_models_keep_todays_behaviour(self):
+        from .routing import choose
+
+        self.assertEqual(choose('translate', 'luo', 'en').key, 'openai-gpt')
+        self.assertEqual(choose('tts', 'sw').key, 'elevenlabs-v3')
+        self.assertEqual(choose('stt', None).key, 'elevenlabs-scribe')
+
+    def test_commercial_model_wins_for_its_language_only(self):
+        from .routing import choose
+
+        self._enable('madlad-400', 'nllb-200')
+        self.assertEqual(choose('translate', 'mas', 'en').key, 'madlad-400')   # Apache-2.0, has Maa
+        self.assertEqual(choose('translate', 'luo', 'en').key, 'openai-gpt')   # NLLB is non-commercial: skipped
+        cfg = DubbingSettings.load()
+        cfg.allow_noncommercial_models = True
+        cfg.save()
+        self.assertEqual(choose('translate', 'luo', 'en').key, 'nllb-200')     # internal tests only
+
+    def test_our_trained_model_takes_over_when_language_added(self):
+        from .models import AIModel
+        from .routing import choose
+
+        AIModel.objects.filter(key='ndimi-voices').update(enabled=True, languages='luo')
+        self.assertEqual(choose('tts', 'luo').key, 'ndimi-voices')
+        self.assertEqual(choose('tts', 'sw').key, 'elevenlabs-v3')
+
+    def test_falls_back_to_next_model_when_one_fails(self):
+        from .pipeline import _with_fallback
+        from .providers import ProviderError
+
+        job = DubJob.objects.create(owner=get_user_model().objects.create_user('u'), name='x', target_language='mas')
+
+        class Broken:
+            def go(self):
+                raise ProviderError('model not loaded')
+
+        class Works:
+            def go(self):
+                return 'ok'
+
+        options = [('MADLAD-400', Broken, 'ndimi'), ('OpenAI (GPT)', Works, 'openai')]
+        self.assertEqual(_with_fallback(job, 'translate', options, lambda p, r: p.go()), 'ok')
+        self.assertEqual(job.state['models']['translate'], 'OpenAI (GPT)')

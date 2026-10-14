@@ -1,6 +1,11 @@
 """The model logic behind the Ndimi model service, kept separate from the web layer so it can be tested.
 
-Which model serves which language is set in models.json (see models.example.json).
+Which model serves which language is set in models.json (see models.example.json):
+
+- "transcribe" / "translate" / "tts": the model per language (used when Ndimi doesn't name one).
+- "models": models by AI-model key, matching Settings > AI models in Ndimi (e.g. "madlad-400").
+  Ndimi sends the key it chose, so one server can host several models and Ndimi picks per language.
+
 Models load the first time they are used and then stay in memory.
 """
 from __future__ import annotations
@@ -36,10 +41,10 @@ def load_config(path=None):
     path = path or os.getenv('NDIMI_MODELS_CONFIG', 'models.json')
     if not os.path.exists(path):
         log.warning('%s not found; no models configured yet. Copy models.example.json to models.json.', path)
-        return {'transcribe': {}, 'translate': {}, 'tts': {}}
+        return {'transcribe': {}, 'translate': {}, 'tts': {}, 'models': {}}
     with open(path, encoding='utf-8') as fh:
         cfg = json.load(fh)
-    for section in ('transcribe', 'translate', 'tts'):
+    for section in ('transcribe', 'translate', 'tts', 'models'):
         cfg.setdefault(section, {})
         cfg[section] = {k: v for k, v in cfg[section].items() if not str(k).startswith('_')}
     return cfg
@@ -63,7 +68,7 @@ class Models:
         self._factory = pipeline_factory or _hf_pipeline
 
     def pipe(self, task, spec):
-        key = (task, spec['model'], spec.get('src_code'), spec.get('tgt_code'))
+        key = (task, spec['model'])
         with self._lock:
             if key not in self._pipes:
                 log.info('Loading %s model %s', task, spec['model'])
@@ -72,7 +77,21 @@ class Models:
 
     # ---- lookups -------------------------------------------------------------------------
 
-    def asr_spec(self, language):
+    def named(self, model, task):
+        """The registry entry Ndimi asked for, or None to choose by language."""
+        if not model:
+            return None
+        spec = self.config['models'].get(model)
+        if spec is None:
+            raise NoModel(f'This server has no model "{model}". Configured: {", ".join(self.config["models"]) or "none"}.')
+        if spec.get('task') != task:
+            raise NoModel(f'Model "{model}" is for {spec.get("task") or "an unknown task"}, not {task}.')
+        return spec
+
+    def asr_spec(self, language, model=None):
+        spec = self.named(model, 'transcribe')
+        if spec:
+            return language, spec
         models = self.config['transcribe']
         if language:
             if language not in models:
@@ -82,14 +101,32 @@ class Models:
             return next(iter(models.items()))
         raise NoModel('Say which language to transcribe; this server has models for: ' + (', '.join(models) or 'none') + '.')
 
-    def translate_spec(self, source, target):
+    def translate_spec(self, source, target, model=None):
+        spec = self.named(model, 'translate')
+        if spec:
+            codes = spec.get('lang_codes') or {}
+            if codes and target not in codes:
+                raise NoModel(f'Model "{model}" does not translate into "{target}". It has: {", ".join(codes)}.')
+            resolved = dict(spec)
+            if codes:
+                resolved['tgt_code'] = codes[target]
+                resolved['src_code'] = codes.get(source or '', spec.get('default_source_code', ''))
+            return resolved
         models = self.config['translate']
         for key in (f'{source}->{target}', f'*->{target}', f'{source}->*'):
             if key in models:
                 return models[key]
         raise NoModel(f'No translation model for {source or "?"} → {target}. Configured: {", ".join(models) or "none"}.')
 
-    def tts_spec(self, language):
+    def tts_spec(self, language, model=None):
+        spec = self.named(model, 'tts')
+        if spec:
+            per_language = spec.get('models_by_language')
+            if per_language:  # e.g. MMS: one checkpoint per language
+                if language not in per_language:
+                    raise NoModel(f'Model "{model}" has no voice for "{language}". It has: {", ".join(per_language)}.')
+                return {**spec, 'model': per_language[language]}
+            return spec
         models = self.config['tts']
         if language not in models:
             raise NoModel(f'No voice model for "{language}". Configured: {", ".join(models) or "none"}.')
@@ -97,8 +134,8 @@ class Models:
 
     # ---- tasks ---------------------------------------------------------------------------
 
-    def transcribe(self, audio_bytes, filename, language):
-        language, spec = self.asr_spec(language)
+    def transcribe(self, audio_bytes, filename, language, model=None):
+        language, spec = self.asr_spec(language, model)
         audio = decode_audio(audio_bytes, filename)
         duration = len(audio) / SAMPLE_RATE
         pipe = self.pipe('automatic-speech-recognition', spec)
@@ -128,10 +165,17 @@ class Models:
             phrase_level = True
         return {'language': language, 'words': words, 'phrase_level': phrase_level, 'duration': round(duration, 3)}
 
-    def translate(self, texts, source, target, glossary=None):
-        spec = self.translate_spec(source, target)
+    def translate(self, texts, source, target, glossary=None, model=None):
+        spec = self.translate_spec(source, target, model)
         if not texts:
             return {'texts': []}
+        if spec.get('style') == 'madlad':
+            # MADLAD-400 is a T5 model: the target language goes in front of each sentence as "<2xx> ".
+            pipe = self.pipe('text2text-generation', spec)
+            prefix = f"<2{spec['tgt_code']}> "
+            results = pipe([prefix + t for t in texts], max_length=spec.get('max_length', 400),
+                           batch_size=spec.get('batch_size', 8))
+            return {'texts': [(r[0] if isinstance(r, list) else r)['generated_text'] for r in results]}
         pipe = self.pipe('translation', spec)
         kwargs = {}
         if spec.get('src_code'):
@@ -142,8 +186,8 @@ class Models:
         # Ndimi also sends a glossary; plain translation models can't take one, so it is accepted and ignored.
         return {'texts': [r['translation_text'] if isinstance(r, dict) else r[0]['translation_text'] for r in results]}
 
-    def tts(self, text, language, voice=None):
-        spec = self.tts_spec(language)
+    def tts(self, text, language, voice=None, model=None):
+        spec = self.tts_spec(language, model)
         pipe = self.pipe('text-to-speech', spec)
         result = pipe(text)
         audio = np.asarray(result['audio'], dtype=np.float32).reshape(-1)

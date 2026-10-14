@@ -10,6 +10,7 @@ Endpoints (see dubbing/providers/custom.py in the Ndimi app):
     POST /translate    JSON {texts, source, target}    -> {"texts": [...]}
     POST /tts          JSON {text, language, voice}    -> audio/wav
     POST /voices       multipart: files[], name        -> {"voice_id": "default"}
+    Every request may name a model ("model": key from Settings > AI models); see models.example.json.
     GET  /health       which models are configured (no token needed)
 
 Run locally:  uvicorn app:app --port 8000
@@ -57,17 +58,18 @@ def health():
         'transcribe': sorted(cfg['transcribe']),
         'translate': sorted(cfg['translate']),
         'tts': sorted(cfg['tts']),
+        'models': {key: spec.get('task') for key, spec in sorted(cfg.get('models', {}).items())},
         'token_required': bool(TOKEN),
     }
 
 
 @app.post('/transcribe', dependencies=[Depends(require_token)])
-async def transcribe(file: UploadFile = File(...), language: str = Form(default='')):
+async def transcribe(file: UploadFile = File(...), language: str = Form(default=''), model: str = Form(default='')):
     data = await file.read()
     if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f'Audio is larger than {MAX_UPLOAD_MB} MB.')
     try:
-        return await run_in_threadpool(models.transcribe, data, file.filename or 'audio', language.strip())
+        return await run_in_threadpool(models.transcribe, data, file.filename or 'audio', language.strip(), model.strip() or None)
     except (NoModel, BadAudio) as e:
         _unprocessable(e)
 
@@ -78,12 +80,13 @@ class TranslateIn(BaseModel):
     target: str
     max_chars: list | None = None
     glossary: dict = Field(default_factory=dict)
+    model: str = ''
 
 
 @app.post('/translate', dependencies=[Depends(require_token)])
 async def translate(body: TranslateIn):
     try:
-        return await run_in_threadpool(models.translate, body.texts, body.source, body.target, body.glossary)
+        return await run_in_threadpool(models.translate, body.texts, body.source, body.target, body.glossary, body.model or None)
     except NoModel as e:
         _unprocessable(e)
 
@@ -92,12 +95,13 @@ class TtsIn(BaseModel):
     text: str
     language: str
     voice: str | None = None
+    model: str = ''
 
 
 @app.post('/tts', dependencies=[Depends(require_token)])
 async def tts(body: TtsIn):
     try:
-        audio = await run_in_threadpool(models.tts, body.text, body.language, body.voice)
+        audio = await run_in_threadpool(models.tts, body.text, body.language, body.voice, body.model or None)
     except NoModel as e:
         _unprocessable(e)
     return Response(content=audio, media_type='audio/wav')

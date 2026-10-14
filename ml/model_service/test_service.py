@@ -114,6 +114,33 @@ def test_all():
         assert w.getframerate() == 16000 and w.getnframes() == 1600
     assert wav_bytes(np.array([2.0, -2.0], dtype=np.float32), 8000)[:4] == b'RIFF'
 
+    # Named models (Ndimi sends the AI model key it chose for the language)
+    class FakeMadlad:
+        def __call__(self, texts, **kw):
+            assert all(t.startswith('<2mas> ') for t in texts)
+            return [{'generated_text': t[7:].upper()} for t in texts]
+
+    class FakeNamedMT:
+        def __call__(self, texts, **kw):
+            return [{'translation_text': f"{kw['src_lang']}>{kw['tgt_lang']}:{t}"} for t in texts]
+
+    named = Models({**CONFIG, 'models': {
+        'madlad-400': {'task': 'translate', 'model': 'google/madlad400-3b-mt', 'style': 'madlad', 'lang_codes': {'mas': 'mas', 'en': 'en'}},
+        'nllb-200': {'task': 'translate', 'model': 'nllb', 'lang_codes': {'luo': 'luo_Latn', 'en': 'eng_Latn'}, 'default_source_code': 'eng_Latn'},
+        'mms-tts': {'task': 'tts', 'models_by_language': {'luo': 'facebook/mms-tts-luo'}},
+    }}, factory_for({'text2text-generation': FakeMadlad(), 'translation': FakeNamedMT(), 'text-to-speech': FakeTTS()}))
+    assert named.translate(['hello'], 'en', 'mas', model='madlad-400') == {'texts': ['HELLO']}
+    assert named.translate(['hi'], 'sw', 'luo', model='nllb-200') == {'texts': ['eng_Latn>luo_Latn:hi']}  # unknown source -> default
+    assert named.tts_spec('luo', 'mms-tts')['model'] == 'facebook/mms-tts-luo'
+    for call in (lambda: named.translate(['x'], 'en', 'luo', model='madlad-400'),   # MADLAD has no Dholuo
+                 lambda: named.translate(['x'], 'en', 'luo', model='missing'),
+                 lambda: named.tts('x', 'luo', model='nllb-200')):                    # wrong task
+        try:
+            call()
+            raise AssertionError('expected NoModel')
+        except NoModel:
+            pass
+
     print('All model service checks passed.')
 
 

@@ -30,6 +30,7 @@ RESOURCES = [
     ('email', 'Email (Resend / SMTP)', 'Configuration', 'system.EmailSettings', 'singleton'),
     ('integrations', 'Integrations & API keys', 'Configuration', 'system.Integration', 'collection'),
     ('dubbing', 'Dubbing engine', 'Configuration', 'dubbing.DubbingSettings', 'singleton'),
+    ('models', 'AI models', 'Configuration', 'dubbing.AIModel', 'collection'),
     ('system', 'System', 'Configuration', 'system.SystemSettings', 'singleton'),
     ('languages', 'Languages', 'Configuration', 'projects.Language', 'collection'),
     ('users', 'Users', 'People & access', 'auth.User', 'collection'),

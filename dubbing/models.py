@@ -28,9 +28,10 @@ class DubbingSettings(SingletonModel):
         ('pipeline', 'Ndimi pipeline (every language, editable)'),
         ('elevenlabs_dubbing', 'ElevenLabs Dubbing API (one-click)'),
     ]
-    STT_CHOICES = [('elevenlabs', 'ElevenLabs Scribe (speakers + word timings)'), ('openai', 'OpenAI Whisper'), ('custom', 'Ndimi models (custom HTTP)')]
-    MT_CHOICES = [('openai', 'OpenAI (context-aware, timing-aware)'), ('google', 'Google Translate'), ('custom', 'Ndimi models (custom HTTP)'), ('none', 'None: humans translate in review')]
-    TTS_CHOICES = [('elevenlabs', 'ElevenLabs (voice cloning)'), ('custom', 'Ndimi models (custom HTTP)')]
+    AUTO = ('auto', 'Automatic: best allowed model for each language (see AI models)')
+    STT_CHOICES = [AUTO, ('elevenlabs', 'ElevenLabs Scribe (speakers + word timings)'), ('openai', 'OpenAI Whisper'), ('custom', 'Ndimi models (custom HTTP)')]
+    MT_CHOICES = [AUTO, ('openai', 'OpenAI (context-aware, timing-aware)'), ('google', 'Google Translate'), ('custom', 'Ndimi models (custom HTTP)'), ('none', 'None: humans translate in review')]
+    TTS_CHOICES = [AUTO, ('elevenlabs', 'ElevenLabs (voice cloning)'), ('custom', 'Ndimi models (custom HTTP)')]
     SEPARATION_CHOICES = [
         ('demucs', 'Demucs, local (best: clean music and effects bed)'),
         ('elevenlabs', 'ElevenLabs voice isolator (clean voice for cloning; original is ducked)'),
@@ -42,9 +43,14 @@ class DubbingSettings(SingletonModel):
         max_length=200, default='sw,ki',
         help_text='Comma-separated language codes "Auto" sends to the ElevenLabs Dubbing API.',
     )
-    stt_provider = models.CharField('Speech-to-text', max_length=12, choices=STT_CHOICES, default='elevenlabs')
-    translation_provider = models.CharField('Translation', max_length=12, choices=MT_CHOICES, default='openai')
-    tts_provider = models.CharField('Voice (text-to-speech)', max_length=12, choices=TTS_CHOICES, default='elevenlabs')
+    stt_provider = models.CharField('Speech-to-text', max_length=12, choices=STT_CHOICES, default='auto')
+    translation_provider = models.CharField('Translation', max_length=12, choices=MT_CHOICES, default='auto')
+    tts_provider = models.CharField('Voice (text-to-speech)', max_length=12, choices=TTS_CHOICES, default='auto')
+    allow_noncommercial_models = models.BooleanField(
+        'Allow non-commercial models', default=False,
+        help_text='Off for real customers. On only for internal tests: lets Automatic pick models whose licence '
+                  'forbids commercial use (e.g. NLLB-200, MMS voices).',
+    )
     separation = models.CharField('Voice/music separation', max_length=12, choices=SEPARATION_CHOICES, default='elevenlabs')
     tts_model_id = models.CharField(max_length=60, default='eleven_v3', help_text='ElevenLabs model. eleven_v3 supports Swahili and Somali.')
     clone_voices = models.BooleanField(default=True, help_text="Clone each speaker's voice. Off: use the default voice.")
@@ -80,6 +86,61 @@ class DubbingSettings(SingletonModel):
         if engine == 'auto':
             return 'elevenlabs_dubbing' if target_language.lower() in self.elevenlabs_languages() else 'pipeline'
         return engine
+
+
+class AIModel(models.Model):
+    """One model Ndimi can use for a step, with its licence and languages.
+
+    With a step set to "Automatic" in Dubbing settings, Ndimi picks, per language, the usable model
+    with the lowest priority number (see dubbing/routing.py), and falls back to the next if it fails.
+    """
+    TASKS = [('stt', 'Speech-to-text'), ('translate', 'Translation'), ('tts', 'Voice (text-to-speech)')]
+    RUNNERS = [
+        ('elevenlabs', 'ElevenLabs API'),
+        ('openai', 'OpenAI API'),
+        ('google', 'Google Cloud API'),
+        ('ndimi', 'Ndimi model service (our GPU server)'),
+    ]
+
+    key = models.SlugField(max_length=60, unique=True, help_text='Code name sent to the model service, e.g. madlad-400.')
+    name = models.CharField(max_length=100)
+    task = models.CharField(max_length=10, choices=TASKS)
+    runner = models.CharField('Runs on', max_length=12, choices=RUNNERS)
+    model_ref = models.CharField('Model', max_length=200, blank=True,
+                                 help_text='What runs: API model ID or Hugging Face repo, e.g. google/madlad400-3b-mt.')
+    languages = models.CharField(max_length=300, blank=True,
+                                 help_text='Ndimi codes it produces or understands, comma-separated (e.g. luo,ki). * = any language.')
+    source_languages = models.CharField(max_length=300, blank=True, default='*',
+                                        help_text='Translation only: languages it translates from. * = any.')
+    licence = models.CharField(max_length=120, blank=True)
+    commercial_use = models.BooleanField('Commercial use allowed', default=True,
+                                         help_text='Off: never used for customer dubs unless "Allow non-commercial models" is on.')
+    enabled = models.BooleanField(default=False)
+    priority = models.PositiveSmallIntegerField(default=50, help_text='Lower wins. Our trained models: 5; open models: 10–20; APIs: 30+.')
+    results = models.JSONField(default=dict, blank=True,
+                               help_text='Test scores per language, e.g. {"luo": {"chrF": 41.2, "accepted": 0.83}}.')
+    notes = models.TextField(blank=True)
+    docs_url = models.URLField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['task', 'priority', 'name']
+        verbose_name = 'AI model'
+
+    def __str__(self):
+        return self.name
+
+    def language_set(self, field='languages'):
+        return {c.strip().lower() for c in (getattr(self, field) or '').split(',') if c.strip()}
+
+    def covers(self, language, source=None):
+        langs = self.language_set()
+        if not ('*' in langs or (language and language.lower() in langs)):
+            return False
+        if self.task == 'translate' and source:
+            sources = self.language_set('source_languages') or {'*'}
+            return '*' in sources or source.lower() in sources
+        return True
 
 
 class DubJob(models.Model):

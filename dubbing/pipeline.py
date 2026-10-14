@@ -31,6 +31,7 @@ from .providers.elevenlabs import ElevenLabsDubbing
 from .providers.sync import SyncLipsync
 from .providers.local import NoSeparator
 from .storage import delete_prefix, is_remote, keep_local_copy, local_path
+from . import routing
 
 logger = logging.getLogger(__name__)
 
@@ -232,12 +233,80 @@ def stage_separate(job, ctx):
     _save_state(job)
 
 
+# ---------- choosing models ----------
+
+STEP_SETTING = {'stt': ('stt', 'stt_provider'), 'translate': ('translation', 'translation_provider'),
+                'tts': ('tts', 'tts_provider')}
+LEGACY_FACTORY = {'stt': lambda c: get_stt(c), 'translate': lambda c: get_translator(c), 'tts': lambda c: get_tts(c)}
+
+
+def _model_options(job, ctx, task, language, source=None):
+    """Models to try for a step, best first: [(label, make_provider, runner)].
+
+    A fixed provider chosen in Dubbing settings is used alone. "Automatic" lists every usable
+    AI model for the language (dubbing/routing.py), so a failing one falls back to the next.
+    """
+    settings = ctx['settings']
+    option, field = STEP_SETTING[task]
+    choice = job.options.get(option) or getattr(settings, field)
+    if choice != 'auto':
+        runner = 'ndimi' if choice == 'custom' else choice
+        return [(choice, lambda: LEGACY_FACTORY[task](choice), runner)]
+    found = routing.candidates(task, language, source, settings)
+    if not found:
+        routing.choose(task, language, source, settings)  # raises with a helpful message
+    return [(m.name, (lambda m=m: routing.provider_for(m)), m.runner) for m in found]
+
+
+def _with_fallback(job, task, options, run):
+    """Run a step with the first model; on a permanent error, try the next one."""
+    for n, (label, make, runner) in enumerate(options):
+        try:
+            result = run(make(), runner)
+        except ProviderError as error:
+            if error.retryable or n == len(options) - 1:
+                raise
+            job.log(f'{label} could not do this ({error}). Trying {options[n + 1][0]}.', level='warning')
+            continue
+        job.state.setdefault('models', {})[task] = label
+        _save_state(job)
+        if len(options) > 1 or n:
+            job.log(f'{routing.TASK_NAMES[task]}: {label}.')
+        return result
+
+
+def _tts(job, ctx):
+    """The voice provider for this job and its model ID. Chosen once and kept, so every line uses the same voices."""
+    from .models import AIModel
+
+    settings = ctx['settings']
+    saved = job.state.get('tts_choice')
+    if saved is None:
+        option, field = STEP_SETTING['tts']
+        choice = job.options.get(option) or getattr(settings, field)
+        if choice == 'auto':
+            model = routing.choose('tts', job.target_language, settings=settings)
+            saved = f'model:{model.key}'
+            job.log(f'Voices: {model.name} ({model.licence or "licence not set"}).')
+        else:
+            saved = choice
+        job.state['tts_choice'] = saved
+        _save_state(job)
+    if saved.startswith('model:'):
+        model = AIModel.objects.filter(key=saved[6:]).first()
+        if model is None:
+            raise ProviderError(f'The voice model "{saved[6:]}" was removed from Settings > AI models.')
+        model_id = model.model_ref if model.runner == 'elevenlabs' and model.model_ref else settings.tts_model_id
+        return routing.provider_for(model), model_id
+    return get_tts(saved), settings.tts_model_id
+
+
 def stage_transcribe(job, ctx):
     settings = ctx['settings']
     files = _files(job)
-    provider = job.options.get('stt') or settings.stt_provider
-    stt = get_stt(provider)
-    transcript = _transcribe(job, ctx, stt, provider, files['speech'])
+    options = _model_options(job, ctx, 'stt', job.source_language or None)
+    transcript = _with_fallback(job, 'stt', options,
+                                lambda stt, runner: _transcribe(job, ctx, stt, runner, files['speech']))
     lines = build_lines(transcript)
     if not lines:
         raise ValueError(f'No speech was found in this {"episode" if job.is_podcast else "video"}.')
@@ -284,15 +353,23 @@ def _transcribe(job, ctx, stt, provider, path):
 
 def stage_translate(job, ctx):
     settings = ctx['settings']
-    translator = get_translator(job.options.get('translation') or settings.translation_provider)
+    choice = job.options.get('translation') or settings.translation_provider
+    options = None if choice == 'none' else _model_options(job, ctx, 'translate', job.target_language, job.source_language or None)
     todo = list(job.segments.filter(edited=False).select_related('speaker'))
-    if translator is None:
+    if options is None:
         job.log('No translation provider: add the translations in review.')
         job.options['review'] = True
         job.save(update_fields=['options'])
         return
     lines = [{'i': s.index, 'text': s.source_text, 'duration': s.end - s.start, 'speaker': str(s.speaker or '')} for s in todo]
-    results = translator.translate(lines, job.source_language, job.target_language, glossary=job.options.get('glossary'))
+    used = {}
+
+    def run(translator, runner):
+        used['translator'] = translator
+        return translator.translate(lines, job.source_language, job.target_language, glossary=job.options.get('glossary'))
+
+    results = _with_fallback(job, 'translate', options, run)
+    translator = used['translator']
     for seg in todo:
         seg.translated_text = results.get(seg.index, seg.translated_text)
         seg.status = 'pending'
@@ -326,7 +403,7 @@ def stage_review(job, ctx):
 
 def stage_voices(job, ctx):
     settings, ff = ctx['settings'], ctx['ff']
-    tts = get_tts(job.options.get('tts') or settings.tts_provider)
+    tts, _ = _tts(job, ctx)
     files = _files(job)
     clone = job.options.get('clone_voices', settings.clone_voices)
     for speaker in job.speakers.all():
@@ -365,7 +442,7 @@ def _synthesize_one(tts, seg, voice_id, path, language, model_id, prev_text, nex
 
 def stage_synthesize(job, ctx):
     settings, ff = ctx['settings'], ctx['ff']
-    tts = get_tts(job.options.get('tts') or settings.tts_provider)
+    tts, tts_model_id = _tts(job, ctx)
     segments = list(job.segments.select_related('speaker').order_by('index'))
     todo = [s for s in segments if s.status != 'ready' and s.translated_text.strip()]
     if not todo:
@@ -382,7 +459,7 @@ def stage_synthesize(job, ctx):
         prev_seg, next_seg = by_index.get(seg.index - 1), by_index.get(seg.index + 1)
         path = str(out_dir / f'{seg.index:05d}_{int(timezone.now().timestamp())}.mp3')
         return seg, _synthesize_one(
-            tts, seg, seg.speaker.voice_id, path, language, settings.tts_model_id,
+            tts, seg, seg.speaker.voice_id, path, language, tts_model_id,
             prev_seg.translated_text if prev_seg else None, next_seg.translated_text if next_seg else None,
         )
 
@@ -840,7 +917,7 @@ def delete_job_files(job):
     settings = DubbingSettings.load()
     for speaker in job.speakers.filter(cloned=True).exclude(voice_id=''):
         try:
-            get_tts(job.options.get('tts') or settings.tts_provider).delete_voice(speaker.voice_id)
+            _tts(job, {'settings': settings})[0].delete_voice(speaker.voice_id)
         except Exception as error:  # best effort
             logger.warning('Could not delete cloned voice %s: %s', speaker.voice_id, error)
     from django.conf import settings as django_settings

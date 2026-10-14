@@ -20,5 +20,53 @@
       "model": "/models/tts-luo",
       "_note": "Any Hugging Face text-to-speech model (e.g. a VITS/MMS voice fine-tuned on your recordings). Remove the leading _ to switch it on."
     }
+  },
+  "models": {
+    "_help": "Keys must match the AI model keys in Ndimi (Settings > AI models). Ndimi sends the key it chose for each language.",
+    "madlad-400": {
+      "task": "translate",
+      "model": "google/madlad400-3b-mt",
+      "style": "madlad",
+      "lang_codes": {
+        "mas": "mas",
+        "sw": "sw",
+        "so": "so",
+        "en": "en"
+      },
+      "_note": "Apache-2.0: commercial use allowed. Has Maa, Kiswahili, Somali; not Dholuo, Gĩkũyũ, Kalenjin."
+    },
+    "nllb-200": {
+      "task": "translate",
+      "model": "facebook/nllb-200-distilled-600M",
+      "lang_codes": {
+        "luo": "luo_Latn",
+        "ki": "kik_Latn",
+        "kam": "kam_Latn",
+        "sw": "swh_Latn",
+        "so": "som_Latn",
+        "en": "eng_Latn"
+      },
+      "default_source_code": "eng_Latn",
+      "_note": "CC-BY-NC-4.0: non-commercial. Ndimi only uses it with 'Allow non-commercial models' on (internal tests)."
+    },
+    "_mms-tts": {
+      "task": "tts",
+      "models_by_language": {
+        "luo": "facebook/mms-tts-luo"
+      },
+      "_note": "CC-BY-NC-4.0: non-commercial. Check which mms-tts-<code> checkpoints exist before listing a language. Remove the leading _ to switch on."
+    },
+    "_ndimi-voices": {
+      "task": "tts",
+      "models_by_language": {
+        "luo": "/models/tts-luo"
+      },
+      "_note": "Our own voices trained on AfriVoices-KE. Remove the leading _ to switch on."
+    },
+    "_ndimi-whisper": {
+      "task": "transcribe",
+      "model": "/models/whisper-luo",
+      "language_token": "swahili"
+    }
   }
 }
