@@ -121,6 +121,7 @@ class DubJob(models.Model):
     subtitles_source = models.FileField(upload_to=job_output_path, max_length=300, blank=True)
     transcript_target = models.FileField(upload_to=job_output_path, max_length=300, blank=True,
                                          help_text='Podcasts: readable dubbed transcript with speakers and timestamps.')
+    archived = models.BooleanField(default=False, db_index=True, help_text='Hidden from the projects list; files are kept.')
     lipsync_video = models.FileField(upload_to=job_output_path, max_length=300, blank=True,
                                      help_text='Dubbed video with the mouths re-animated to match the new voice (Sync).')
 

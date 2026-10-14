@@ -371,6 +371,24 @@ class PipelineTests(TestCase):
         self.assertTrue(job.lipsync_video.name.endswith('-lipsync.mp4'))
         self.assertEqual(self.client.get(f'/api/dubs/{job.pk}/').json()['dub']['lipsync']['status'], 'completed')
 
+    def test_bulk_archive_retry_delete(self):
+        a, b = self._create(review=False), self._create(review=False)
+        DubJob.objects.filter(pk=a.pk).update(status='failed', error='boom')
+        DubJob.objects.filter(pk=b.pk).update(status='completed')
+        bulk = lambda action, ids: self.client.post('/api/dubs/bulk/', {'action': action, 'ids': [str(i) for i in ids]},
+                                                     content_type='application/json').json()
+        r = bulk('retry', [a.pk, b.pk])
+        self.assertEqual(r['done'], [str(a.pk)])
+        self.assertEqual(len(r['skipped']), 1)  # a finished dub is not retried
+        self.assertEqual(DubJob.objects.get(pk=a.pk).status, 'queued')
+        self.assertEqual(bulk('archive', [b.pk])['done'], [str(b.pk)])
+        data = self.client.get('/api/dubs/').json()
+        self.assertEqual(([d['id'] for d in data['dubs']], data['counts']['archived']), ([str(a.pk)], 1))
+        self.assertEqual([d['id'] for d in self.client.get('/api/dubs/?archived=1').json()['dubs']], [str(b.pk)])
+        self.assertEqual(bulk('delete', [a.pk])['skipped'][0]['reason'], 'Still processing. Cancel it first.')
+        self.assertEqual(bulk('delete', [b.pk])['done'], [str(b.pk)])
+        self.assertFalse(DubJob.objects.filter(pk=b.pk).exists())
+
     def test_provider_failure_retries_then_fails(self):
         from .providers import ProviderError
 

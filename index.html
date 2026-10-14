@@ -511,6 +511,17 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 @media(prefers-color-scheme:dark){.dm.get{background:#14532d;color:#86efac}.dm.post{background:#1e3a8a;color:#93c5fd}.dm.patch{background:#451a03;color:#fcd34d}.dm.del{background:#450a0a;color:#fca5a5}}
 .docs-ep-path{font-family:var(--mono,monospace);font-size:12.5px}
 .docs-ep-note{color:var(--muted);font-size:12.5px}
+/* projects: tabs, filter and bulk actions */
+.projbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.projbar select{background:var(--canvas);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}
+.bulkbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--canvas)}
+.bulkbar .acts{display:flex;gap:8px;flex-wrap:wrap}
+.bulkbar label{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);cursor:pointer}
+.projrow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.projrow .lang{flex:1;min-width:0}
+.projrow .lang b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.projrow input,.bulkbar input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer;flex:none}
+.projrow.sel .lang{border-color:var(--brand)}
 </style>
 </head>
 <body>
@@ -650,6 +661,7 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
         <div class="panel player">
           <div class="stage">
             <video id="vid" playsinline controls></video>
+            <audio id="dubAud" preload="auto" class="hidden"></audio>
             <div class="ytwrap hidden" id="ytWrap"><div id="ytBox"></div></div>
             <div class="empty hidden" id="stageEmpty">No demo videos yet. An admin needs to add them in demo setup.</div>
           </div>
@@ -717,7 +729,29 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 
     <!-- ===== View: Projects ===== -->
     <section id="vProj" class="hidden">
-      <div class="panel" style="padding:22px;max-width:720px">
+      <div class="panel" style="padding:22px;max-width:820px">
+        <div class="projbar">
+          <div class="seg" role="group" aria-label="Projects">
+            <button id="pTabActive" aria-pressed="true">Active</button>
+            <button id="pTabArch" aria-pressed="false">Archived</button>
+          </div>
+          <select id="pFilter" aria-label="Show">
+            <option value="all">All dubs</option>
+            <option value="failed">Failed</option>
+            <option value="completed">Done</option>
+            <option value="active">In progress</option>
+            <option value="review">Ready for review</option>
+          </select>
+        </div>
+        <div class="bulkbar hidden" id="bulkBar">
+          <label><input type="checkbox" id="pAll"><span id="bulkCount">Select all</span></label>
+          <div class="acts">
+            <button class="btn ghost sm" id="bFailed">Select failed</button>
+            <button class="btn ghost sm" id="bRetry" disabled>Retry</button>
+            <button class="btn ghost sm" id="bArchive" disabled>Archive</button>
+            <button class="btn danger sm" id="bDelete" disabled>Delete</button>
+          </div>
+        </div>
         <div id="projList" class="emptyscript" style="padding:0">No dubs yet. Start one from New dub.</div>
       </div>
     </section>
@@ -929,8 +963,10 @@ async function openJob(job){
   state.dubURL=null;state.dubBlob=null;
   if(dubUrl){const b=await fetchBlob(dubUrl);if(b)setDub(b);}else{state.dubBlob=null;state.dubURL=null;}
   state.lipURL=job.outputs.lipsync_video||null;
+  state.jobYT=ytId(job.source_url||'');
+  state.dubIsAudio=!!(job.outputs.audio&&!job.outputs.video);
   $('abLip').classList.toggle('hidden',!state.lipURL);
-  $('stageEmpty').textContent=job.outputs.audio&&!job.outputs.video?'This dub is audio only. Dub the uploaded video file (not a link) to get a dubbed video.':'The video could not be loaded. Refresh the page to try again.';
+  $('stageEmpty').textContent=state.dubIsAudio?'This dub is audio only, and the original video is not available. Dub the uploaded video file to see it here.':'The video could not be loaded. Refresh the page to try again.';
   $('demoNote').classList.add('hidden');
   show('vStudio');setTrack(state.lipURL?'lip':state.dubURL?'dub':'orig',true);renderLines();updateJobBar();
   computePeaks('orig',state.userOrigBlob||state.origBlob);computePeaks('dub',state.dubBlob);
@@ -983,16 +1019,41 @@ async function ytLoad(id,at,play){
   await ytApi();
   if(!P.yt){await new Promise(res=>{P.yt=new YT.Player('ytBox',{videoId:id,host:'https://www.youtube-nocookie.com',
       playerVars:{start:Math.floor(at||0),rel:0,playsinline:1,modestbranding:1},
-      events:{onReady:()=>{if(at)P.yt.seekTo(at,true);if(play)P.yt.playVideo();res();}}});});}
+      events:{onReady:()=>{if(at)P.yt.seekTo(at,true);if(play)P.yt.playVideo();res();},onStateChange:()=>syncPair()}});});}
   else if(P.ytId!==id){play?P.yt.loadVideoById({videoId:id,startSeconds:at||0}):P.yt.cueVideoById({videoId:id,startSeconds:at||0});}
   else{P.yt.seekTo(at||0,true);if(play)P.yt.playVideo();}
   P.ytId=id;}
+/* The original picture of a real dub: the uploaded video, or the YouTube video it was made from. */
+function pictureFor(){
+  if(state.source==='file'&&state.userOrig&&state.userOrigBlob&&/^video\//.test(state.userOrigBlob.type))return {url:state.userOrig};
+  if(state.origURL&&state.origBlob&&/^video\//.test(state.origBlob.type))return {url:state.origURL};
+  if(state.jobYT)return {yt:state.jobYT};
+  return null;}
 function srcFor(t){
   const demo=!state.job; /* YouTube links are for the demo, not for real dub jobs */
   if(t==='lip')return state.job&&state.lipURL?{url:state.lipURL}:null;
-  if(t==='dub')return demo&&state.dubYT?{yt:state.dubYT}:(state.dubURL?{url:state.dubURL}:null);
+  if(t==='dub'){
+    if(demo)return state.dubYT?{yt:state.dubYT}:(state.dubURL?{url:state.dubURL}:null);
+    if(!state.dubURL)return null;
+    /* Audio-only dub: show the original picture, muted, and play the dub alongside it. */
+    if(state.dubIsAudio){const pic=pictureFor();if(pic)return {...pic,pair:state.dubURL};}
+    return {url:state.dubURL};}
   if(state.source==='file'&&state.userOrig)return {url:state.userOrig};
+  if(!demo&&state.jobYT&&!state.origURL)return {yt:state.jobYT};
   return demo&&state.origYT?{yt:state.origYT}:(state.origURL?{url:state.origURL}:null);}
+/* ---- keep the paired dub audio in step with the picture ---- */
+const dubAud=$('dubAud');
+function applyPairMute(){const on=!!P.pair;vid.muted=on;if(P.yt&&P.yt.mute){on?P.yt.mute():P.yt.unMute();}}
+function syncPair(){
+  if(!P.pair){if(!dubAud.paused)dubAud.pause();return;}
+  const t=P.t||0;
+  const stalled=P.mode==='video'&&vid.readyState<3; /* picture still buffering */
+  if(P.paused||stalled){if(!dubAud.paused)dubAud.pause();if(Math.abs((dubAud.currentTime||0)-t)>0.3){try{dubAud.currentTime=t}catch(e){}}return;}
+  if(Math.abs((dubAud.currentTime||0)-t)>0.25){try{dubAud.currentTime=t}catch(e){}}
+  if(dubAud.paused)dubAud.play().catch(()=>{});}
+['play','pause','seeked','playing'].forEach(ev=>vid.addEventListener(ev,syncPair));
+vid.addEventListener('waiting',()=>{if(P.pair)dubAud.pause();}); /* picture buffering: hold the voice too */
+setInterval(()=>{if(P.pair&&!$('vStudio').classList.contains('hidden'))syncPair();else if(!dubAud.paused&&$('vStudio').classList.contains('hidden'))dubAud.pause();},250);
 function hasDub(){return !!srcFor('dub');}
 function setTrack(t,first){
   state.track=t;$('abOrig').setAttribute('aria-pressed',t==='orig');$('abDub').setAttribute('aria-pressed',t==='dub');$('abLip').setAttribute('aria-pressed',t==='lip');
@@ -1000,10 +1061,13 @@ function setTrack(t,first){
   const src=srcFor(t);
   $('stageEmpty').classList.toggle('hidden',!!src);
   const at=first?0:P.t,playing=!first&&!P.paused;
+  P.pair=src&&src.pair?src.pair:null;
+  if(P.pair){if(dubAud.getAttribute('src')!==P.pair)dubAud.src=P.pair;}else{dubAud.pause();}
+  applyPairMute();
   if(!src){vid.pause();vid.removeAttribute('src');vid.load();if(P.yt&&P.yt.pauseVideo)P.yt.pauseVideo();$('ytWrap').classList.add('hidden');vid.classList.remove('hidden');P.mode='video';return;}
   if(src.yt){
     vid.pause();vid.classList.add('hidden');$('ytWrap').classList.remove('hidden');P.mode='yt';
-    ytLoad(src.yt,at,playing).catch(e=>toast(e.message));return;}
+    ytLoad(src.yt,at,playing).then(()=>{applyPairMute();syncPair();}).catch(e=>toast(e.message));return;}
   if(P.yt&&P.yt.pauseVideo)P.yt.pauseVideo();$('ytWrap').classList.add('hidden');vid.classList.remove('hidden');P.mode='video';
   const url=src.url;
   if(vid.src!==url){vid.src=url;vid.addEventListener('loadedmetadata',function h(){vid.removeEventListener('loadedmetadata',h);try{vid.currentTime=Math.min(at,vid.duration||at)}catch(e){}if(playing)vid.play().catch(()=>{});},{once:true});}
@@ -1089,16 +1153,53 @@ function setDub(b){state.dubBlob=b;if(state.dubURL)URL.revokeObjectURL(state.dub
 
 /* ---------- projects ---------- */
 const STATUS_TEXT={queued:'Queued',running:'Working',review:'Ready for review',completed:'Done',failed:'Failed',cancelled:'Cancelled'};
+state.projTab='active';state.projFilter='all';state.sel=new Set();
+const RETRYABLE=['failed','cancelled'],ACTIVE=['queued','running'];
+function projShown(){const f=state.projFilter;return (state.dubs||[]).filter(j=>f==='all'||(f==='active'?ACTIVE.includes(j.status):f==='failed'?RETRYABLE.includes(j.status):j.status===f));}
+async function loadProjects(){state.projData=await api('/api/dubs/?archived='+(state.projTab==='archived'?1:0));state.dubs=state.projData.dubs;
+  const ids=new Set(state.dubs.map(j=>j.id));[...state.sel].forEach(id=>{if(!ids.has(id))state.sel.delete(id);});}
 function renderProjects(){const b=$('projList');
-  if(!realMode()){b.textContent=server.mode==='server'?'Dubbing access is not enabled for this account.':'Live service unavailable.';return;}
-  if(!state.dubs||!state.dubs.length){b.textContent='No dubs yet. Start one from New dub.';return;}
-  b.innerHTML='';state.dubs.forEach(job=>{const r=document.createElement('button');r.className='lang';r.style.marginBottom='8px';r.style.width='100%';
-    r.innerHTML='<b></b><small></small>';r.querySelector('b').textContent=job.name;
+  const c=(state.projData&&state.projData.counts)||{};
+  $('pTabActive').textContent='Active'+(c.active!=null?' ('+c.active+')':'');$('pTabArch').textContent='Archived'+(c.archived!=null?' ('+c.archived+')':'');
+  $('pTabActive').setAttribute('aria-pressed',state.projTab==='active');$('pTabArch').setAttribute('aria-pressed',state.projTab==='archived');
+  if(!realMode()){$('bulkBar').classList.add('hidden');b.textContent=server.mode==='server'?'Dubbing access is not enabled for this account.':'Live service unavailable.';return;}
+  const list=projShown();
+  $('bulkBar').classList.toggle('hidden',!list.length);
+  if(!list.length){b.textContent=state.projTab==='archived'?'No archived dubs.':(state.dubs&&state.dubs.length?'No dubs match this filter.':'No dubs yet. Start one from New dub.');updateBulkBar();return;}
+  b.innerHTML='';list.forEach(job=>{const row=document.createElement('div');row.className='projrow'+(state.sel.has(job.id)?' sel':'');
+    row.innerHTML='<input type="checkbox"><button class="lang"><b></b><small></small></button>';
+    const cb=row.querySelector('input'),r=row.querySelector('button');
+    cb.checked=state.sel.has(job.id);cb.setAttribute('aria-label','Select '+job.name);
+    cb.onchange=()=>{cb.checked?state.sel.add(job.id):state.sel.delete(job.id);row.classList.toggle('sel',cb.checked);updateBulkBar();};
+    r.querySelector('b').textContent=job.name;
     const sm=r.querySelector('small');sm.textContent=langNameOf(job.target_language)+' · '+(STATUS_TEXT[job.status]||job.status)+(job.status==='running'?' '+job.progress+'%':'');
     if(job.status==='completed')sm.className='ok';
-    r.onclick=async()=>{try{const d=await api(`/api/dubs/${job.id}/`);trackJob(d.dub);}catch(e){toast(e.message);}};b.appendChild(r);});}
+    r.onclick=async()=>{try{const d=await api(`/api/dubs/${job.id}/`);trackJob(d.dub);}catch(e){toast(e.message);}};b.appendChild(row);});
+  updateBulkBar();}
+function updateBulkBar(){const list=projShown(),sel=list.filter(j=>state.sel.has(j.id)),n=sel.length;
+  $('bulkCount').textContent=n?n+' selected':'Select all';
+  $('pAll').checked=!!list.length&&n===list.length;$('pAll').indeterminate=n>0&&n<list.length;
+  $('bRetry').disabled=!sel.some(j=>RETRYABLE.includes(j.status));
+  $('bArchive').disabled=!n;$('bArchive').textContent=state.projTab==='archived'?'Unarchive':'Archive';
+  $('bDelete').disabled=!n;$('bFailed').classList.toggle('hidden',!list.some(j=>RETRYABLE.includes(j.status)));}
+async function bulkAction(action){
+  const list=projShown(),ids=list.filter(j=>state.sel.has(j.id)).map(j=>j.id);if(!ids.length)return;
+  if(action==='delete'&&!confirm('Delete '+ids.length+(ids.length===1?' dub':' dubs')+' and all their files? This cannot be undone.'))return;
+  try{const r=await api('/api/dubs/bulk/',{method:'POST',json:{action,ids}});
+    const verb={archive:'Archived',unarchive:'Restored',delete:'Deleted',retry:'Retrying'}[action];
+    toast(verb+' '+r.done.length+(r.skipped.length?'. Skipped '+r.skipped.length+': '+r.skipped[0].reason:''));
+    state.sel.clear();await loadProjects();renderProjects();}
+  catch(e){toast(e.message);}}
+$('pAll').onchange=()=>{const list=projShown();if($('pAll').checked)list.forEach(j=>state.sel.add(j.id));else list.forEach(j=>state.sel.delete(j.id));renderProjects();};
+$('bFailed').onclick=()=>{state.sel.clear();projShown().forEach(j=>{if(RETRYABLE.includes(j.status))state.sel.add(j.id);});renderProjects();};
+$('bRetry').onclick=()=>bulkAction('retry');
+$('bArchive').onclick=()=>bulkAction(state.projTab==='archived'?'unarchive':'archive');
+$('bDelete').onclick=()=>bulkAction('delete');
+$('pFilter').onchange=()=>{state.projFilter=$('pFilter').value;renderProjects();};
+async function switchProjTab(tab){state.projTab=tab;state.sel.clear();try{await loadProjects();}catch(e){toast(e.message);return;}renderProjects();}
+$('pTabActive').onclick=()=>switchProjTab('active');$('pTabArch').onclick=()=>switchProjTab('archived');
 $('navProj').onclick=async()=>{clearTimeout(poll);
-  try{if(realMode())state.dubs=(await api('/api/dubs/')).dubs;}catch(e){toast(e.message);return;}
+  try{if(realMode())await loadProjects();}catch(e){toast(e.message);return;}
   renderProjects();show('vProj');};
 $('navNew').onclick=()=>{clearTimeout(poll);show('vNew');try{history.replaceState(null,'','/');}catch(e){}};
 
@@ -1521,7 +1622,8 @@ const DOCS_ENDPOINTS=[
   {m:'POST',p:'/api/config/setup/',n:'Upload demo videos & script — requires Can change demo setup'},
   {m:'GET',p:'/api/projects/',n:'List own projects (all with Can see every user\'s projects)'},
   {m:'POST',p:'/api/projects/',n:'Create project — body: {"name":"…","target_language":"…"}'},
-  {m:'GET',p:'/api/dubs/',n:'List dub jobs for current user'},
+  {m:'GET',p:'/api/dubs/',n:'List dub jobs for current user (?archived=1 for archived ones; includes counts)'},
+  {m:'POST',p:'/api/dubs/bulk/',n:'Bulk action — JSON: action (archive, unarchive, delete, retry), ids. Returns done and skipped with reasons'},
   {m:'POST',p:'/api/dubs/uploads/',n:'Get a signed upload URL (R2) — JSON: filename, size, content_type. PUT the file there, then create the dub with upload_key'},
   {m:'POST',p:'/api/dubs/',n:'Create dub — multipart: file, upload_key or source_url, target_language, source_language, review, clone_voices, num_speakers, glossary JSON'},
   {m:'GET',p:'/api/dubs/<id>/',n:'Job status, stages, speakers, transcript lines, events'},

@@ -5,6 +5,7 @@ from . import api
 urlpatterns = [
     path('', api.dubs, name='dubs'),
     path('uploads/', api.upload_url, name='dub-upload-url'),
+    path('bulk/', api.bulk, name='dub-bulk'),
     path('<uuid:job_id>/', api.dub_detail, name='dub-detail'),
     path('<uuid:job_id>/approve/', api.approve, name='dub-approve'),
     path('<uuid:job_id>/regenerate/', api.regenerate, name='dub-regenerate'),

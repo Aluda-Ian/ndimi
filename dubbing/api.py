@@ -77,12 +77,14 @@ def job_dict(job, detail=False):
         'name': job.name,
         'owner': job.owner.get_username(),
         'status': job.status,
+        'archived': job.archived,
         'stage': job.stage,
         'progress': job.progress,
         'error': job.error,
         'engine': job.engine,
         'source_language': job.source_language,
         'target_language': job.target_language,
+        'source_url': job.source_url,
         'duration': job.duration_seconds,
         'kind': 'podcast' if job.is_podcast else 'video',
         'pacing': job.pacing,
@@ -182,8 +184,13 @@ def upload_url(request):
 @api_permission_required(USE_TOOL)
 def dubs(request):
     if request.method == 'GET':
-        jobs = _visible_jobs(request.user).select_related('owner')[:100]
-        return JsonResponse({'dubs': [job_dict(j) for j in jobs]})
+        archived = _bool(request.GET.get('archived'))
+        jobs = _visible_jobs(request.user).filter(archived=archived).select_related('owner')[:200]
+        counts = {
+            'active': _visible_jobs(request.user).filter(archived=False).count(),
+            'archived': _visible_jobs(request.user).filter(archived=True).count(),
+        }
+        return JsonResponse({'dubs': [job_dict(j) for j in jobs], 'counts': counts})
     if request.method == 'POST':
         return _create(request)
     return JsonResponse({'error': 'Method not allowed.'}, status=405)
@@ -280,6 +287,71 @@ def _create(request):
     job.save()
     job.log(f'Queued ({"ElevenLabs Dubbing" if engine == "elevenlabs_dubbing" else "Ndimi pipeline"}, {language.name}).', stage='queued')
     return JsonResponse({'dub': job_dict(job, detail=True)}, status=201)
+
+
+BULK_ACTIONS = ('archive', 'unarchive', 'delete', 'retry')
+BULK_LIMIT = 200
+
+
+@api_permission_required(USE_TOOL)
+def bulk(request):
+    """Archive, unarchive, delete or retry several dubs at once.
+
+    Body: {"action": "archive" | "unarchive" | "delete" | "retry", "ids": ["<uuid>", ...]}.
+    Returns {"done": [ids], "skipped": [{"id", "name", "reason"}]}; dubs that can't take the action are skipped.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+    body = _json(request) or {}
+    action, ids = body.get('action'), body.get('ids') or []
+    if action not in BULK_ACTIONS:
+        return JsonResponse({'error': f'action must be one of: {", ".join(BULK_ACTIONS)}.'}, status=400)
+    if not isinstance(ids, list) or not ids or len(ids) > BULK_LIMIT:
+        return JsonResponse({'error': f'Send between 1 and {BULK_LIMIT} dub IDs.'}, status=400)
+    jobs = {str(j.pk): j for j in _visible_jobs(request.user).filter(pk__in=[str(i) for i in ids])}
+    done, skipped = [], []
+    for job_id in map(str, ids):
+        job = jobs.get(job_id)
+        if job is None:
+            skipped.append({'id': job_id, 'name': '', 'reason': 'Not found.'})
+            continue
+        reason = _bulk_one(request, job, action)
+        if reason:
+            skipped.append({'id': job_id, 'name': job.name, 'reason': reason})
+        else:
+            done.append(job_id)
+    return JsonResponse({'done': done, 'skipped': skipped})
+
+
+def _bulk_one(request, job, action):
+    """Apply one bulk action. Returns why it was skipped, or None when done."""
+    user = request.user
+    if not _can_modify(user, job):
+        return "You can't change this dub."
+    if action == 'delete':
+        if not (job.owner_id == user.pk or user.has_perm('dubbing.delete_dubjob')):
+            return "You can't delete this dub."
+        if job.status in DubJob.ACTIVE:
+            return 'Still processing. Cancel it first.'
+        delete_job_files(job)
+        job.delete()
+        return None
+    if action == 'retry':
+        if job.status not in ('failed', 'cancelled'):
+            return 'Only failed or cancelled dubs can be retried.'
+        job.attempts = 0
+        job.archived = False
+        job.requeue()
+        job.log(f'Retry requested by {user.get_username()} (bulk).', stage=job.stage)
+        return None
+    if action == 'archive':
+        if job.status in DubJob.ACTIVE:
+            return 'Still processing. Archive it when it has finished.'
+        job.archived = True
+    else:
+        job.archived = False
+    job.save(update_fields=['archived', 'updated_at'])
+    return None
 
 
 # ---------- one job ----------
