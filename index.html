@@ -511,6 +511,12 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 @media(prefers-color-scheme:dark){.dm.get{background:#14532d;color:#86efac}.dm.post{background:#1e3a8a;color:#93c5fd}.dm.patch{background:#451a03;color:#fcd34d}.dm.del{background:#450a0a;color:#fca5a5}}
 .docs-ep-path{font-family:var(--mono,monospace);font-size:12.5px}
 .docs-ep-note{color:var(--muted);font-size:12.5px}
+/* download menu on the project page */
+.dlwrap{position:relative}
+.dlmenu{position:absolute;right:0;bottom:calc(100% + 8px);min-width:250px;z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.28)}
+.dlmenu button{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;gap:14px;width:100%;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+.dlmenu button:hover,.dlmenu button:focus-visible{background:var(--canvas)}
+.dlmenu small{color:var(--muted);font-weight:500}
 /* projects: tabs, filter and bulk actions */
 .projbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .projbar select{background:var(--canvas);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}
@@ -686,7 +692,10 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
           <div class="lines" id="lines"></div>
           <footer>
             <button class="btn ghost" id="shareBtn">Share for review</button>
-            <button class="btn" id="exportBtn">Export video</button>
+            <div class="dlwrap">
+              <button class="btn" id="exportBtn" aria-haspopup="menu" aria-expanded="false">Export video</button>
+              <div class="dlmenu hidden" id="dlMenu" role="menu"></div>
+            </div>
           </footer>
         </div>
       </div>
@@ -987,7 +996,8 @@ function updateJobBar(){
     btn.textContent=ls.status==='failed'?'Try lip sync again':'Lip sync';btn.onclick=()=>{if(!ls.configured){toast('Turn on "Sync (lip sync)" in Settings > Integrations first.');return;}
       if(confirm('Lip sync this video with Sync? It costs about $'+ls.estimate_usd.toFixed(2)+' and takes a few minutes.'))jobAction(job,'lipsync');};}
   else bar.classList.add('hidden');
-  $('exportBtn').textContent=job.outputs.video||job.outputs.lipsync_video?'Download video':job.outputs.audio?'Download audio':'Export video';
+  const dl=downloadOptions(job);
+  $('exportBtn').textContent=dl.length>1?'Download ▾':dl.length?dl[0].label.replace(/ \(.*\)$/,'').replace(/^Dubbed /,'Download '):'Export video';
   $('shareBtn').textContent=job.outputs.subtitles?'Subtitles (.srt)':'Share for review';
 }
 function lipOffer(job){const ls=job.lipsync;return !!(ls&&ls.available&&job.status==='completed'&&job.outputs.video&&!job.outputs.lipsync_video&&(ls.status==='none'||ls.status==='failed'||ls.status==='done'));}
@@ -1095,7 +1105,24 @@ function activeLine(){const t=P.t;let a=-1;state.segs.forEach((s,i)=>{if(t>=s.t)
   [...$('lines').children].forEach((el,i)=>{const on=i===a;if(on&&!el.classList.contains('active')&&!P.paused)el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.toggle('active',on);});}
 vid.addEventListener('timeupdate',()=>{if(P.mode!=='video')return;$('clock').textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration);activeLine();});
 setInterval(()=>{if(P.mode==='yt'&&P.yt&&P.yt.getCurrentTime&&!$('vStudio').classList.contains('hidden')){$('clock').textContent=fmt(P.t)+' / '+fmt(P.d);activeLine();}},300);
-$('exportBtn').onclick=()=>{const j=state.job;const u=j&&realMode()&&((state.track!=='dub'&&j.outputs.lipsync_video)||j.outputs.video||j.outputs.audio);if(u){location.href=u+'?download=1';}else toast(j&&j.status==='review'?'Approve the script to generate the dub first':'No export is available for this dub yet.');};
+/* What this dub can be downloaded as: video(s) and the dubbed audio on its own. */
+function downloadOptions(job){const o=(job&&job.outputs)||{},L=job?langNameOf(job.target_language):'';const items=[];
+  if(o.lipsync_video)items.push({label:'Lip-synced video (MP4)',hint:L+' voice, mouths matched',url:o.lipsync_video});
+  if(o.video)items.push({label:'Dubbed video (MP4)',hint:L+' voice',url:o.video});
+  if(o.audio_download||o.audio)items.push({label:'Dubbed audio (MP3)',hint:'Voice and music, no picture',url:o.audio_download||o.audio});
+  return items;}
+function closeDl(){$('dlMenu').classList.add('hidden');$('exportBtn').setAttribute('aria-expanded','false');}
+document.addEventListener('click',e=>{if(!e.target.closest('.dlwrap'))closeDl();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDl();});
+$('exportBtn').onclick=()=>{const j=state.job;const items=j&&realMode()?downloadOptions(j):[];
+  if(items.length>1){const m=$('dlMenu');
+    if(!m.classList.contains('hidden')){closeDl();return;}
+    m.innerHTML='';items.forEach(it=>{const b=document.createElement('button');b.setAttribute('role','menuitem');
+      b.innerHTML='<span></span><small></small>';b.querySelector('span').textContent=it.label;b.querySelector('small').textContent=it.hint;
+      b.onclick=()=>{closeDl();toast(it.label.startsWith('Dubbed audio')?'Preparing the audio…':'Downloading…');location.href=it.url+'?download=1';};m.appendChild(b);});
+    m.classList.remove('hidden');$('exportBtn').setAttribute('aria-expanded','true');m.querySelector('button').focus();return;}
+  if(items.length===1){location.href=items[0].url+'?download=1';return;}
+  toast(j&&j.status==='review'?'Approve the script to generate the dub first':'No export is available for this dub yet.');};
 $('shareBtn').onclick=()=>{const j=state.job;if(j&&realMode()&&j.outputs.subtitles){location.href=j.outputs.subtitles+'?download=1';}else toast('No subtitle export is available for this dub yet.');};
 
 /* ---------- waveforms ---------- */

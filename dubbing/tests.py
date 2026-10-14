@@ -309,6 +309,15 @@ class PipelineTests(TestCase):
         self.assertTrue(job.dubbed_video.name.endswith('.mp4'))
         self.assertTrue(FFmpeg().info(job.dubbed_video.path)['has_video'])
         self.assertEqual(job.segments.get().translated_text, 'Amosi')
+        self.assertTrue(job.dubbed_audio.name.endswith('.mp3'))  # audio on its own, next to the video
+
+        # Older video dubs without a separate audio file: "Download audio" makes it on first request.
+        job.dubbed_audio.delete(save=True)
+        outputs = self.client.get(f'/api/dubs/{job.pk}/').json()['dub']['outputs']
+        self.assertTrue(outputs['audio_download'])
+        self.assertEqual(self.client.get(outputs['audio_download'] + '?download=1').status_code, 200)
+        job.refresh_from_db()
+        self.assertFalse(FFmpeg().info(job.dubbed_audio.path)['has_video'])
 
         # Fix a line, then redub: the job switches to the Ndimi pipeline and keeps the edit.
         r = self.client.patch(f'/api/dubs/{job.pk}/segments/0/', {'translated_text': 'Amosi ahinya'},

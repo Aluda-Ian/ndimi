@@ -637,8 +637,8 @@ def stage_el_download(job, ctx):
     job.duration_seconds = ff.info(dubbed)['duration']
     if source_info['has_video']:
         _replace(job.dubbed_video, f'{_slug(job)}-{lang}.mp4', ff.mux(source, dubbed, str(work / 'el_dub.mp4')))
-    else:
-        _replace(job.dubbed_audio, f'{_slug(job)}-{lang}.mp3', ff.encode_mp3(dubbed, str(work / 'el_dub.mp3')))
+    # The dubbed soundtrack on its own too, for "Download audio".
+    _replace(job.dubbed_audio, f'{_slug(job)}-{lang}.mp3', ff.encode_mp3(dubbed, str(work / 'el_dub.mp3')))
 
     segments = api.transcript(project_id, language_id)
     if segments:

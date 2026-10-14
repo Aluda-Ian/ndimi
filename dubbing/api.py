@@ -96,6 +96,8 @@ def job_dict(job, detail=False):
         'outputs': {
             'video': _url(job, 'video') if job.dubbed_video else None,
             'audio': _url(job, 'audio') if job.dubbed_audio else None,
+            # Audio-only download of a video dub (made on first request if the dub has no separate audio file).
+            'audio_download': _url(job, 'audio') if (job.dubbed_audio or job.dubbed_video) else None,
             'subtitles': _url(job, 'subtitles') if job.subtitles_target else None,
             'source_subtitles': _url(job, 'source-subtitles') if job.subtitles_source else None,
             'source': _url(job, 'source') if job.source_file else None,
@@ -568,6 +570,11 @@ def speaker_detail(request, job_id, speaker_id):
 @api_permission_required(USE_TOOL)
 def download(request, job_id, kind):
     job = _get_job(request, job_id)
+    if kind == 'audio' and not job.dubbed_audio and job.dubbed_video:
+        try:
+            _extract_audio(job)
+        except Exception as error:  # ffmpeg missing or file unreadable
+            return JsonResponse({'error': f'Could not prepare the audio: {error}'}, status=500)
     field = {
         'video': job.dubbed_video, 'audio': job.dubbed_audio, 'subtitles': job.subtitles_target,
         'source-subtitles': job.subtitles_source, 'source': job.source_file,
@@ -577,6 +584,25 @@ def download(request, job_id, kind):
         raise Http404('File not ready.')
     as_attachment = request.GET.get('download') == '1'
     return serve(field, as_attachment=as_attachment)
+
+
+def _extract_audio(job):
+    """Older video dubs have no separate audio file: take the soundtrack out of the MP4 once and keep it."""
+    import tempfile
+
+    from django.core.files import File
+
+    from .engine.audio import FFmpeg
+    from .pipeline import _slug
+    from .storage import local_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        ff = FFmpeg(DubbingSettings.load().ffmpeg_path)
+        mp3 = f'{tmp}/audio.mp3'
+        ff.run(['-i', local_path(job.dubbed_video, tmp), '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', mp3])
+        with open(mp3, 'rb') as fh:
+            job.dubbed_audio.save(f'{_slug(job)}-{job.target_language}.mp3', File(fh), save=False)
+    job.save(update_fields=['dubbed_audio', 'updated_at'])
 
 
 @api_permission_required(USE_TOOL)
