@@ -528,6 +528,7 @@ dialog::backdrop{background:rgba(10,12,12,.55)}
 .projrow .lang b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .projrow input,.bulkbar input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer;flex:none}
 .projrow.sel .lang{border-color:var(--brand)}
+.projrow .openbtn{flex:none;padding:9px 16px}
 </style>
 </head>
 <body>
@@ -1194,15 +1195,20 @@ function renderProjects(){const b=$('projList');
   $('bulkBar').classList.toggle('hidden',!list.length);
   if(!list.length){b.textContent=state.projTab==='archived'?'No archived dubs.':(state.dubs&&state.dubs.length?'No dubs match this filter.':'No dubs yet. Start one from New dub.');updateBulkBar();return;}
   b.innerHTML='';list.forEach(job=>{const row=document.createElement('div');row.className='projrow'+(state.sel.has(job.id)?' sel':'');
-    row.innerHTML='<input type="checkbox"><button class="lang"><b></b><small></small></button>';
-    const cb=row.querySelector('input'),r=row.querySelector('button');
+    row.innerHTML='<input type="checkbox"><button class="lang"><b></b><small></small></button><button class="btn ghost sm openbtn">Open</button>';
+    const cb=row.querySelector('input'),r=row.querySelector('.lang'),ob=row.querySelector('.openbtn');
+    ob.setAttribute('aria-label','Open '+job.name);
     cb.checked=state.sel.has(job.id);cb.setAttribute('aria-label','Select '+job.name);
     cb.onchange=()=>{cb.checked?state.sel.add(job.id):state.sel.delete(job.id);row.classList.toggle('sel',cb.checked);updateBulkBar();};
     r.querySelector('b').textContent=job.name;
     const sm=r.querySelector('small');sm.textContent=langNameOf(job.target_language)+' · '+(STATUS_TEXT[job.status]||job.status)+(job.status==='running'?' '+job.progress+'%':'');
     if(job.status==='completed')sm.className='ok';
-    r.onclick=async()=>{try{const d=await api(`/api/dubs/${job.id}/`);trackJob(d.dub);}catch(e){toast(e.message);}};b.appendChild(row);});
+    r.onclick=ob.onclick=()=>openProject(job.id);b.appendChild(row);});
   updateBulkBar();}
+/* Open a dub; the address (#dub/<id>) can be bookmarked, shared or reloaded. */
+async function openProject(id){
+  try{const d=await api(`/api/dubs/${id}/`);try{history.replaceState(null,'','#dub/'+id);}catch(e){}trackJob(d.dub);}
+  catch(e){toast(e.message);}}
 function updateBulkBar(){const list=projShown(),sel=list.filter(j=>state.sel.has(j.id)),n=sel.length;
   $('bulkCount').textContent=n?n+' selected':'Select all';
   $('pAll').checked=!!list.length&&n===list.length;$('pAll').indeterminate=n>0&&n<list.length;
@@ -1225,7 +1231,7 @@ $('bDelete').onclick=()=>bulkAction('delete');
 $('pFilter').onchange=()=>{state.projFilter=$('pFilter').value;renderProjects();};
 async function switchProjTab(tab){state.projTab=tab;state.sel.clear();try{await loadProjects();}catch(e){toast(e.message);return;}renderProjects();}
 $('pTabActive').onclick=()=>switchProjTab('active');$('pTabArch').onclick=()=>switchProjTab('archived');
-$('navProj').onclick=async()=>{clearTimeout(poll);
+$('navProj').onclick=async()=>{clearTimeout(poll);try{history.replaceState(null,'','#projects');}catch(e){}
   try{if(realMode())await loadProjects();}catch(e){toast(e.message);return;}
   renderProjects();show('vProj');};
 $('navNew').onclick=()=>{clearTimeout(poll);show('vNew');try{history.replaceState(null,'','/');}catch(e){}};
@@ -1821,6 +1827,7 @@ function applyUser(u){
   if(server.mode==='server'&&cfg.user.can_manage){$('navManage').classList.remove('hidden');
     const m=location.hash.match(/^#settings(?:\/([\w-]+)(?:\/([\w-]+))?)?/);if(m)openManage(m[1],m[2]);}
   if(location.hash==='#projects')$('navProj').click();
+  {const m=location.hash.match(/^#dub\/([0-9a-f-]{36})$/i);if(m&&realMode())openProject(m[1]);}
   if(realMode()){$('reviewRow').classList.remove('hidden');$('reviewSw').setAttribute('aria-checked',String(cfg.dubbing?cfg.dubbing.review_by_default:true));}
   renderLangs();setTab('link');
   const s=cfg.setup||{};if(s.script){$('segs').value=s.script;state.segs=parseSegs(s.script);}
