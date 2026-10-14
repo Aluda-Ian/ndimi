@@ -941,6 +941,10 @@ function updateJobBar(){
   const changed=state.segs.filter(s=>s.status==='stale').length;
   $('scriptHint').textContent=job.editable?'Tap a line to jump. Edit the translation in place.':'Tap a line to jump.';
   if(job.status==='review'){bar.classList.remove('hidden');$('jobBarText').textContent='Check the translation, then generate the voices.';btn.textContent='Approve script';btn.onclick=()=>jobAction(job,'approve');}
+  else if(job.editable&&job.engine==='elevenlabs_dubbing'&&(changed||job.redub_needed)){bar.classList.remove('hidden');
+    $('jobBarText').textContent=(changed===1?'1 line edited.':(changed||'Some')+' lines edited.')+' Redub to voice the whole video again with your script.';
+    btn.textContent='Redub';btn.onclick=()=>{if(!job.outputs.source){toast('This dub was made from a link. Upload the video file and dub it again to edit it.');return;}
+      if(confirm('Redub this video with your edited script? Each speaker\'s voice is cloned again and every line is re-voiced. This takes a few minutes and uses ElevenLabs credits.'))jobAction(job,'redub');};}
   else if(job.editable&&changed){bar.classList.remove('hidden');$('jobBarText').textContent=changed===1?'1 edited line needs a new voice.':changed+' edited lines need new voices.';btn.textContent='Regenerate';btn.onclick=()=>jobAction(job,'regenerate');}
   else if(lipOffer(job)){const ls=job.lipsync;bar.classList.remove('hidden');
     $('jobBarText').textContent=(ls.status==='failed'?'Lip sync failed: '+(ls.error||'unknown error')+'. ':'Make the mouths match the '+langNameOf(job.target_language)+' voice. ')+'About $'+ls.estimate_usd.toFixed(2)+' with Sync.';
@@ -1527,6 +1531,7 @@ const DOCS_ENDPOINTS=[
   {m:'POST',p:'/api/dubs/<id>/approve/',n:'Approve reviewed script → generate voices'},
   {m:'POST',p:'/api/dubs/<id>/regenerate/',n:'Re-voice lines marked needs new voice and re-render'},
   {m:'POST',p:'/api/dubs/<id>/cancel/',n:'Cancel a running job'},
+  {m:'POST',p:'/api/dubs/<id>/redub/',n:'ElevenLabs Dubbing jobs: voice the video again from the edited script (cloned voices, ElevenLabs TTS)'},
   {m:'POST',p:'/api/dubs/<id>/lipsync/',n:'Lip sync a finished video dub with Sync (needs the Sync integration and R2). Output: outputs.lipsync_video'},
   {m:'POST',p:'/api/dubs/<id>/retry/',n:'Retry a failed job (skips completed stages)'},
   {m:'GET',p:'/api/dubs/<id>/download/video|audio|subtitles|source/',n:'Stream or download output — add ?download=1 to force save'},

@@ -648,11 +648,62 @@ def stage_el_download(job, ctx):
         if any(t for _, _, t in source_items):
             job.subtitles_source.save('source.srt', ContentFile(to_srt(source_items).encode('utf-8')), save=False)
         job.segments.all().delete()
+        speakers = _speakers_for(job, [s.get('speaker_id') for s in segments])
         Segment.objects.bulk_create([
             Segment(job=job, index=i, start=a, end=b, translated_text=t, status='ready',
-                    source_text=segments[i].get('source_text') or '')
+                    source_text=segments[i].get('source_text') or '',
+                    speaker=speakers.get(segments[i].get('speaker_id') or 'speaker_0'))
             for i, (a, b, t) in enumerate(items)
         ])
+    job.save()
+
+
+def _speakers_for(job, speaker_ids):
+    """One Speaker per distinct ElevenLabs speaker ID, in order of appearance."""
+    job.speakers.all().delete()
+    speakers = {}
+    for sid in speaker_ids:
+        sid = sid or 'speaker_0'
+        if sid not in speakers:
+            speakers[sid] = Speaker.objects.create(job=job, label=sid[:40], name=f'Speaker {len(speakers) + 1}')
+    return speakers
+
+
+def convert_to_pipeline(job):
+    """Redub an ElevenLabs Dubbing job with its (edited) script through the Ndimi pipeline.
+
+    ElevenLabs only lets Enterprise accounts edit and regenerate a dub, so instead we keep its
+    transcript and translations (with the user's edits), clone each speaker's voice from the
+    original, and voice every line again with ElevenLabs text-to-speech.
+    """
+    segments = list(job.segments.order_by('index'))
+    if any(s.speaker_id is None for s in segments):
+        speaker_ids = None
+        if job.state.get('el_project_id') and job.state.get('el_language_id'):
+            try:
+                remote = ElevenLabsDubbing().transcript(job.state['el_project_id'], job.state['el_language_id'])
+                if len(remote) == len(segments):
+                    speaker_ids = [r.get('speaker_id') for r in remote]
+            except ProviderError:
+                pass
+        speakers = _speakers_for(job, speaker_ids or ['speaker_0'] * len(segments))
+        for seg, sid in zip(segments, speaker_ids or ['speaker_0'] * len(segments)):
+            seg.speaker = speakers[sid or 'speaker_0']
+    for seg in segments:
+        seg.status = 'pending'
+        if seg.audio:
+            seg.audio.delete(save=False)
+    Segment.objects.bulk_update(segments, ['speaker', 'status', 'audio'])
+    job.engine = 'pipeline'
+    job.options['review'] = False
+    job.options.pop('lip_sync', None)  # the old lip sync no longer matches the new voices
+    if job.lipsync_video:
+        job.lipsync_video.delete(save=False)
+    job.state = {
+        'done': ['transcribe', 'translate', 'review'], 'approved': True, 'converted_from': 'elevenlabs_dubbing',
+        **{k: v for k, v in job.state.items() if k.startswith('el_')},
+    }
+    job.attempts, job.progress, job.stage = 0, 0, 'prepare'
     job.save()
 
 

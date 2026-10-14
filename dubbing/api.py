@@ -11,7 +11,7 @@ from projects.views import USE_TOOL, api_permission_required
 from system.models import SystemSettings
 
 from .models import DubbingSettings, DubJob
-from .pipeline import delete_job_files, stages_for
+from .pipeline import convert_to_pipeline, delete_job_files, stages_for
 from .providers import sync as sync_provider
 from .storage import is_remote, new_upload_key, presigned_put, serve, upload_key_belongs_to
 
@@ -88,7 +88,9 @@ def job_dict(job, detail=False):
         'pacing': job.pacing,
         'created_at': job.created_at.isoformat(),
         'finished_at': job.finished_at.isoformat() if job.finished_at else None,
-        'editable': job.engine == 'pipeline' and job.status in ('review', 'completed', 'failed'),
+        'editable': (job.engine == 'pipeline' and job.status in ('review', 'completed', 'failed'))
+                    or (job.engine == 'elevenlabs_dubbing' and job.status == 'completed'),
+        'redub_needed': job.engine == 'elevenlabs_dubbing' and job.segments.filter(edited=True).exists(),
         'outputs': {
             'video': _url(job, 'video') if job.dubbed_video else None,
             'audio': _url(job, 'audio') if job.dubbed_audio else None,
@@ -231,6 +233,8 @@ def _create(request):
 
     requested = post.get('engine') if user.has_perm('dubbing.choose_dub_engine') else None
     engine = settings.resolve_engine(requested, target)
+    if engine == 'elevenlabs_dubbing' and not requested and str(post.get('review', '')).lower() == 'true':
+        engine = 'pipeline'  # ElevenLabs Dubbing can't pause for script review; the Ndimi pipeline can
     if engine == 'pipeline' and source_url and not has_file and ('youtu' in source_url or 'tiktok' in source_url):
         return JsonResponse({'error': 'For YouTube or TikTok links, upload the video file instead.'}, status=400)
 
@@ -344,6 +348,26 @@ def regenerate(request, job):
 
 
 @_post_action
+def redub(request, job):
+    """Voice an ElevenLabs Dubbing job again from its edited script (cloned voices, ElevenLabs TTS)."""
+    if job.engine != 'elevenlabs_dubbing':
+        return JsonResponse({'error': 'Use Regenerate: this dub already re-voices only the lines you change.'}, status=400)
+    if job.status != 'completed':
+        return JsonResponse({'error': 'Wait until the dub has finished.'}, status=409)
+    if not job.source_file:
+        return JsonResponse({'error': 'Redubbing needs the original file. This dub was made from a link: '
+                                      'upload the video file and dub it again.'}, status=400)
+    if not job.segments.exclude(translated_text='').exists():
+        return JsonResponse({'error': 'This dub has no script to voice.'}, status=400)
+    convert_to_pipeline(job)
+    job.requeue()
+    edited = job.segments.filter(edited=True).count()
+    job.log(f'Redub with the edited script requested by {request.user.get_username()} ({edited} edited line(s)).',
+            stage='prepare')
+    return JsonResponse({'dub': job_dict(job, detail=True)})
+
+
+@_post_action
 def lipsync(request, job):
     """Re-animate the mouths in the finished dub to match the new voice (Sync). Charged per second by Sync."""
     if job.status in DubJob.ACTIVE:
@@ -407,7 +431,7 @@ def segment_detail(request, job_id, index):
     if request.method != 'PATCH':
         return JsonResponse({'error': 'Method not allowed.'}, status=405)
     job = _get_job(request, job_id)
-    if not _can_modify(request.user, job) or job.engine != 'pipeline':
+    if not _can_modify(request.user, job) or not job_dict(job)['editable']:
         return JsonResponse({'error': "You can't edit this dub."}, status=403)
     if job.status in DubJob.ACTIVE:
         return JsonResponse({'error': 'Wait until processing stops, then edit.'}, status=409)

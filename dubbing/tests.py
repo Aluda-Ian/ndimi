@@ -310,6 +310,21 @@ class PipelineTests(TestCase):
         self.assertTrue(FFmpeg().info(job.dubbed_video.path)['has_video'])
         self.assertEqual(job.segments.get().translated_text, 'Amosi')
 
+        # Fix a line, then redub: the job switches to the Ndimi pipeline and keeps the edit.
+        r = self.client.patch(f'/api/dubs/{job.pk}/segments/0/', {'translated_text': 'Amosi ahinya'},
+                              content_type='application/json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(self.client.get(f'/api/dubs/{job.pk}/').json()['dub']['redub_needed'])
+        r = self.client.post(f'/api/dubs/{job.pk}/redub/', {}, content_type='application/json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(run_once('test'))
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'completed', job.error)
+        self.assertEqual(job.engine, 'pipeline')
+        seg = job.segments.get()
+        self.assertEqual((seg.translated_text, seg.status), ('Amosi ahinya', 'ready'))
+        self.assertTrue(FFmpeg().info(job.dubbed_video.path)['has_video'])
+
     def test_lipsync_after_dub(self):
         """A finished video dub can be lip-synced; a lip sync failure never breaks the dub."""
         from django.core.files.storage import default_storage
